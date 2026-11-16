@@ -32,5 +32,7 @@
 - 開発サーバ：`npm run dev`
 - テスト：`npm test`（Vitest。`tests/**/*.test.ts`）
 - 型チェック・lint：`npm run lint`（`tsc --noEmit` と ESLint）
-- ビルド：`npm run build`（出力は `dist/`。配信パスは `/pay-app/`）
+- ビルド：`npm run build`（出力は `dist/`。配信パスは `/pay-app/`。CSP と Service Worker はビルド時にだけ入る）
+- 本番ビルドの確認：`npm run preview`（`http://localhost:4173/pay-app/`）
+- アイコンの作り直し：`node scripts/make-icons.mjs`
 - 漏洩チェック（手動）：`node "$HOME/.claude/hooks/leak-check.mjs" --manual .`

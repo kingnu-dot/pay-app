@@ -14,6 +14,6 @@ export default tseslint.config(
   {
     // Node.js で動かすスクリプト用のグローバル
     files: ["scripts/**/*.mjs"],
-    languageOptions: { globals: { process: "readonly", console: "readonly" } },
+    languageOptions: { globals: { process: "readonly", console: "readonly", Buffer: "readonly" } },
   },
 );

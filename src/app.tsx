@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { annualPeriod } from "./engine/annual";
 import { toJstDate } from "./engine/dates";
-import { sumAnnualSpent } from "./engine/spend";
+import { adjustmentFor, sumAnnualSpent } from "./engine/spend";
 import { fetchRules } from "./rules/fetch";
 import { syncRules, type SyncResult } from "./rules/sync";
 import { mergeRules, type Settings } from "./settings/settings";
 import {
   addSpend,
+  deleteSpend,
   idbRulesCache,
   listSpend,
   loadRulesConfig,
@@ -17,6 +18,7 @@ import {
   type RulesConfig,
   type SpendEntry,
 } from "./storage/db";
+import { Annual } from "./ui/Annual";
 import { problemText } from "./ui/explain";
 import { Home, type PaidRecord } from "./ui/Home";
 
@@ -42,7 +44,14 @@ async function loadAll(): Promise<AppData> {
   return { config, sync, settings, spend };
 }
 
+type Tab = "home" | "annual";
+const TABS: Array<{ id: Tab; label: string }> = [
+  { id: "home", label: "ホーム" },
+  { id: "annual", label: "年間目標" },
+];
+
 export function App() {
+  const [tab, setTab] = useState<Tab>("home");
   const [data, setData] = useState<AppData | null>(null);
   const [load_error, setLoadError] = useState<string | null>(null);
   const [today, setToday] = useState(() => toJstDate(new Date()));
@@ -119,6 +128,26 @@ export function App() {
     setData({ ...data, spend: await listSpend() });
   };
 
+  const setAnnualTotal = async (card_id: string, entered_total_yen: number) => {
+    const diff_yen = adjustmentFor(annual_spent_yen[card_id] ?? 0, entered_total_yen);
+    if (diff_yen !== 0) {
+      await addSpend({
+        date: today,
+        amount_yen: diff_yen,
+        kind: "adjustment",
+        method_id: null,
+        annual_card_id: card_id,
+        note: "累計の補正",
+        created_at: new Date().toISOString(),
+      });
+    }
+    setData({ ...data, spend: await listSpend() });
+  };
+  const removeEntry = async (id: number) => {
+    await deleteSpend(id);
+    setData({ ...data, spend: await listSpend() });
+  };
+
   const problem = problemText(data.sync.problem, merged !== null);
 
   return (
@@ -133,7 +162,17 @@ export function App() {
           個人設定を反映できなかったため、公式ルールだけで判定しています（{merged.errors.slice(0, 2).join(" / ")}）
         </p>
       )}
-      {merged ? (
+      {merged && tab === "annual" && (
+        <Annual
+          rules={merged.rules}
+          today={today}
+          spend={data.spend}
+          annual_spent_yen={annual_spent_yen}
+          onSetTotal={setAnnualTotal}
+          onDeleteEntry={removeEntry}
+        />
+      )}
+      {merged && tab !== "home" ? null : merged ? (
         <Home
           rules={merged.rules}
           settings={data.settings}
@@ -149,6 +188,13 @@ export function App() {
         </section>
       )}
       {import.meta.env.DEV && <DevTools onLoaded={reload} />}
+      <nav class="tabs" aria-label="画面の切り替え">
+        {TABS.map((t) => (
+          <button key={t.id} type="button" class="tab" aria-current={tab === t.id ? "page" : undefined} onClick={() => setTab(t.id)}>
+            {t.label}
+          </button>
+        ))}
+      </nav>
     </main>
   );
 }

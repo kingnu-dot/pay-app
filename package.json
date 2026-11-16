@@ -12,6 +12,7 @@
     "lint": "npm run gen && tsc --noEmit && eslint ."
   },
   "dependencies": {
+    "idb": "^8.0.4",
     "preact": "^11.2.0"
   },
   "devDependencies": {

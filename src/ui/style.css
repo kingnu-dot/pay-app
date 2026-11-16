@@ -1,0 +1,286 @@
+/* 片手で操作できるよう、押す場所は 44px 以上にする */
+:root {
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --text: #111827;
+  --muted: #4b5563;
+  --line: #d1d5db;
+  --accent: #1d4ed8;
+  --accent-text: #ffffff;
+  --ok-bg: #dcfce7;
+  --warn-bg: #fef3c7;
+  --info-bg: #dbeafe;
+  --error-bg: #fee2e2;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111827;
+    --surface: #1f2937;
+    --text: #f9fafb;
+    --muted: #d1d5db;
+    --line: #4b5563;
+    --accent: #60a5fa;
+    --accent-text: #111827;
+    --ok-bg: #14532d;
+    --warn-bg: #713f12;
+    --info-bg: #1e3a8a;
+    --error-bg: #7f1d1d;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+main {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 8px 16px calc(80px + env(safe-area-inset-bottom));
+}
+
+.app-header h1 {
+  margin: 8px 0;
+  font-size: 1.1rem;
+}
+
+h2 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.card-top {
+  border: 2px solid var(--accent);
+}
+
+.rank {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.method {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.reward {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 4px 0;
+}
+
+.reward-yen {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.reward-rate {
+  color: var(--muted);
+}
+
+.reason {
+  margin: 8px 0;
+}
+
+.tag {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.loyalty ul,
+.breakdown,
+.notices,
+.banner ul {
+  margin: 4px 0;
+  padding-left: 1.2em;
+}
+
+.breakdown {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+p.breakdown {
+  padding-left: 0;
+}
+
+.notices,
+.notice {
+  font-size: 0.9rem;
+  background: var(--warn-bg);
+  border-radius: 8px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  padding-right: 8px;
+}
+
+.notice {
+  margin: 4px 0;
+  padding-left: 8px;
+}
+
+.banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+
+.screen > .banner {
+  margin: 0;
+}
+
+.banner-ok {
+  background: var(--ok-bg);
+}
+
+.banner-warn {
+  background: var(--warn-bg);
+}
+
+.banner-info {
+  background: var(--info-bg);
+}
+
+.banner-error {
+  background: var(--error-bg);
+}
+
+.input {
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 12px;
+  font-size: 1.1rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.amount {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.choice {
+  min-height: 44px;
+  padding: 8px 14px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+}
+
+.choice-plain {
+  border-style: dashed;
+}
+
+.primary {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--accent-text);
+  background: var(--accent);
+  border: none;
+  border-radius: 12px;
+}
+
+.link {
+  min-height: 44px;
+  padding: 8px;
+  color: var(--accent);
+  background: none;
+  border: none;
+  text-decoration: underline;
+}
+
+.selected {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 1.1rem;
+}
+
+.hint {
+  color: var(--muted);
+  margin: 4px 0;
+}
+
+.error {
+  color: #b91c1c;
+  margin: 4px 0;
+}
+
+summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.others {
+  margin: 0;
+  padding-left: 1.4em;
+}
+
+.others li {
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.other-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.dev {
+  margin-top: 12px;
+  border-style: dashed;
+}

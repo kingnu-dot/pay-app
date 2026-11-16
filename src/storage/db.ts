@@ -4,6 +4,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import type { RulesSource } from "../rules/fetch";
 import type { RulesCache, RulesState } from "../rules/sync";
+import { normalizeSettings, type Settings } from "../settings/settings";
 
 /** 利用額の記録1件 */
 export interface SpendEntry {
@@ -39,6 +40,7 @@ const DB_NAME = "pay-app";
 const DB_VERSION = 1;
 const KEY_RULES_CONFIG = "rules_config";
 const KEY_RULES_STATE = "rules_state";
+const KEY_SETTINGS = "settings";
 
 let db_promise: Promise<IDBPDatabase<PayDb>> | null = null;
 
@@ -71,6 +73,27 @@ export async function loadRulesConfig(): Promise<RulesConfig> {
 
 export async function saveRulesConfig(config: RulesConfig): Promise<void> {
   await kvSet(KEY_RULES_CONFIG, config);
+}
+
+export async function loadSettings(): Promise<Settings> {
+  return normalizeSettings(await kvGet(KEY_SETTINGS));
+}
+
+export async function saveSettings(settings: Settings): Promise<void> {
+  await kvSet(KEY_SETTINGS, settings);
+}
+
+/** 利用額の記録をすべて読む（古い順） */
+export async function listSpend(): Promise<SpendEntry[]> {
+  return (await getDb()).getAll("spend");
+}
+
+export async function addSpend(entry: Omit<SpendEntry, "id">): Promise<void> {
+  await (await getDb()).add("spend", entry);
+}
+
+export async function deleteSpend(id: number): Promise<void> {
+  await (await getDb()).delete("spend", id);
 }
 
 /** ルールのキャッシュ（現行版と直前版） */

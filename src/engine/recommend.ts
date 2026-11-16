@@ -25,6 +25,8 @@ export interface RewardComponent {
   label: string;
   point_id: string;
   point_name: string;
+  /** 1 ポイントの評価額 [1/1000 円] */
+  point_value_milliyen: number;
   /** card：カードの還元 / charge：チャージ時の還元 / method：手段そのものの還元 */
   source: "card" | "charge" | "method";
   /** actual：端数処理後の実付与量 / expected：期待値（月間合算・チャージ） / rate：金額未入力 */
@@ -131,6 +133,7 @@ function evaluate(
     label: rule.label,
     point_id: point.id,
     point_name: point.name,
+    point_value_milliyen: point.value_milliyen,
     source,
     basis: "rate",
     points: null,

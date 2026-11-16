@@ -246,6 +246,14 @@
       ],
       "earns_points": true,
       "counts_toward_annual": false
+    },
+    {
+      "id": "card_c_online",
+      "label": "カードC／通販で番号入力",
+      "pay_type": "online",
+      "card_id": "card_c",
+      "earns_points": true,
+      "counts_toward_annual": false
     }
   ],
   "stores": [
@@ -272,6 +280,12 @@
       "name": "店舗V",
       "aliases": ["ブイ"],
       "unusable_method_ids": ["card_c_quicpay"]
+    },
+    {
+      "id": "store_w",
+      "name": "通販W",
+      "aliases": [],
+      "channel": "online"
     }
   ],
   "store_groups": [

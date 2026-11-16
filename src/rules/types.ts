@@ -119,6 +119,8 @@ export interface Store {
   id: string;
   name: string;
   aliases: string[];
+  /** in_store：店頭（省略時） / online：通販 */
+  channel?: "in_store" | "online";
   loyalty?: Loyalty[];
   unusable_pay_types?: PurchasePayType[];
   unusable_method_ids?: string[];

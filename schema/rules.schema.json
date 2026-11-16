@@ -227,6 +227,10 @@
         "id": { "$ref": "#/$defs/id" },
         "name": { "$ref": "#/$defs/text" },
         "aliases": { "type": "array", "items": { "$ref": "#/$defs/text" } },
+        "channel": {
+          "description": "in_store：店頭（省略時） / online：通販。通販では払い方 online の手段だけを候補にする",
+          "enum": ["in_store", "online"]
+        },
         "loyalty": { "type": "array", "items": { "$ref": "#/$defs/loyalty" } },
         "unusable_pay_types": { "type": "array", "items": { "$ref": "#/$defs/purchase_pay_type" } },
         "unusable_method_ids": { "$ref": "#/$defs/id_list" },

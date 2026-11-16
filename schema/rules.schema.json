@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "updated_at", "points", "cards", "methods", "stores", "store_groups", "redemptions"],
   "properties": {
+    "$schema": { "type": "string" },
     "schema_version": { "const": 1 },
     "updated_at": { "$ref": "#/$defs/date" },
     "points": { "type": "array", "items": { "$ref": "#/$defs/point" } },
@@ -38,6 +39,12 @@
       "type": "array",
       "items": { "$ref": "#/$defs/id" }
     },
+    "id_list_nonempty": {
+      "description": "空でない id の一覧（空の一覧は「どの店にも該当しない」条件になってしまうため禁止）",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/id" }
+    },
     "days_of_month": {
       "description": "対象となる日（1〜31）",
       "type": "array",
@@ -53,12 +60,12 @@
       "enum": ["charge_transit_ic", "charge_qr_pay", "charge_emoney"]
     },
     "cap": {
-      "description": "上限。amount は unit の単位での整数",
+      "description": "上限。amount は unit の単位での整数。還元ルールでは、unit が point なら付与されるポイントの上限、yen なら還元の対象になる金額の上限。period が txn の上限だけ計算に反映し、それ以外は注意として表示する（ポイント利用の案内では day も 1会計の上限として扱う）",
       "type": "object",
       "additionalProperties": false,
       "required": ["amount", "unit", "period"],
       "properties": {
-        "amount": { "type": "integer", "minimum": 0 },
+        "amount": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
         "unit": { "enum": ["point", "yen"] },
         "period": { "enum": ["txn", "day", "month", "year"] }
       }
@@ -86,9 +93,10 @@
         "id": { "$ref": "#/$defs/id" },
         "name": { "$ref": "#/$defs/text" },
         "value_milliyen": {
-          "description": "1 ポイントの評価額 [1/1000 円]。例：1.5 円 = 1500",
+          "description": "1 ポイントの評価額 [1/1000 円]。例：1.2 円 = 1200",
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "maximum": 1000000
         }
       }
     },
@@ -101,8 +109,8 @@
         "id": { "$ref": "#/$defs/id" },
         "label": { "$ref": "#/$defs/text" },
         "point_id": { "$ref": "#/$defs/id" },
-        "unit_yen": { "description": "計算単位 [円]", "type": "integer", "minimum": 1 },
-        "points_per_unit": { "description": "計算単位あたりの付与量 [ポイント]", "type": "integer", "minimum": 0 },
+        "unit_yen": { "description": "計算単位 [円]", "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "points_per_unit": { "description": "計算単位あたりの付与量 [ポイント]", "type": "integer", "minimum": 0, "maximum": 100000 },
         "scope": {
           "description": "per_txn：1回の利用ごとに端数処理（実付与量で比較） / monthly：月間合計に対して付与（期待値で比較）",
           "enum": ["per_txn", "monthly"]
@@ -112,9 +120,10 @@
           "enum": ["floor", "round"]
         },
         "multiplier": {
-          "description": "端数処理の後に掛ける倍率（省略時 1）。例：100 円単位で四捨五入してから 2 倍 → 150 円は 2 × 2 = 4 ポイント（3 ポイントにはならない）",
+          "description": "端数処理の後に掛ける倍率（省略時 1）。例：200 円単位で四捨五入してから 3 倍 → 300 円は 2 × 3 = 6 ポイント（5 ポイントにはならない）",
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 100
         },
         "stacking": {
           "description": "base：基本の還元 / add：基本に上乗せ / replace_base：条件に合うとき基本を置き換える",
@@ -125,7 +134,7 @@
       }
     },
     "applies": {
-      "description": "適用条件。指定した項目をすべて満たすときに適用する",
+      "description": "適用条件。指定した項目をすべて満たすときに適用する。ただし店舗の条件は、store_group_ids と store_ids のどちらかに該当すればよい",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -135,9 +144,9 @@
           "minItems": 1,
           "items": { "anyOf": [{ "$ref": "#/$defs/purchase_pay_type" }, { "$ref": "#/$defs/charge_pay_type" }] }
         },
-        "store_group_ids": { "$ref": "#/$defs/id_list" },
-        "store_ids": { "$ref": "#/$defs/id_list" },
-        "exclude_store_ids": { "$ref": "#/$defs/id_list" },
+        "store_group_ids": { "$ref": "#/$defs/id_list_nonempty" },
+        "store_ids": { "$ref": "#/$defs/id_list_nonempty" },
+        "exclude_store_ids": { "$ref": "#/$defs/id_list_nonempty" },
         "days_of_month": { "$ref": "#/$defs/days_of_month" }
       }
     },
@@ -147,7 +156,7 @@
       "additionalProperties": false,
       "required": ["target_yen", "period_start_month", "period_start_day", "meta"],
       "properties": {
-        "target_yen": { "type": "integer", "minimum": 1 },
+        "target_yen": { "type": "integer", "minimum": 1, "maximum": 1000000000 },
         "period_start_month": { "type": "integer", "minimum": 1, "maximum": 12 },
         "period_start_day": { "type": "integer", "minimum": 1, "maximum": 28 },
         "meta": { "$ref": "#/$defs/meta" }
@@ -170,7 +179,7 @@
       "additionalProperties": false,
       "required": ["text"],
       "properties": {
-        "amount_gt_yen": { "type": "integer", "minimum": 0 },
+        "amount_gt_yen": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
         "text": { "$ref": "#/$defs/text" }
       }
     },
@@ -262,7 +271,8 @@
         "value_milliyen": {
           "description": "この条件で使うときの 1 ポイントの価値 [1/1000 円]",
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "maximum": 1000000
         },
         "text": { "$ref": "#/$defs/text" },
         "meta": { "$ref": "#/$defs/meta" }

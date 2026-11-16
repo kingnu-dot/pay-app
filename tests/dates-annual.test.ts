@@ -64,9 +64,17 @@ describe("annualStatus：達成ペース（目標 500,000 円）", () => {
     expect(s.pace_yen).toBe(389_041); // 500,000 × 284 ÷ 365 を切り捨て
   });
 
-  it("累計が日割りの直線を下回ると遅れ、ちょうどなら遅れではない", () => {
-    expect(at(389_040).behind).toBe(true);
-    expect(at(389_041).behind).toBe(false);
+  it("累計が日割りの直線（389,041.09… 円）を下回ると遅れ、上回れば遅れではない", () => {
+    // 切り捨てた 389,041 円と同額でも、直線には 0.09 円届いていないので遅れ
+    expect(at(389_041).behind).toBe(true);
+    expect(at(389_042).behind).toBe(false);
+  });
+
+  it("直線とちょうど同額なら遅れではない（目標 365,000 円なら 1 日 1,000 円）", () => {
+    const exact = (spent_yen: number) =>
+      annualStatus({ target_yen: 365_000, spent_yen, date: "2026-01-10", period }).behind;
+    expect(exact(283_999)).toBe(true);
+    expect(exact(284_000)).toBe(false);
   });
 
   it("期間の初日はペースが 0 なので、累計 0 でも遅れではない", () => {

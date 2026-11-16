@@ -16,7 +16,10 @@ export type ChargePayType = "charge_transit_ic" | "charge_qr_pay" | "charge_emon
 
 export type PayType = PurchasePayType | ChargePayType;
 
-/** 上限。amount は unit の単位での整数 */
+/**
+ * 上限。amount は unit の単位での整数。
+ * 還元ルールでは、unit が point なら付与されるポイントの上限、yen なら還元の対象になる金額の上限
+ */
 export interface Cap {
   amount: number;
   unit: "point" | "yen";
@@ -41,7 +44,10 @@ export interface Point {
   value_milliyen: number;
 }
 
-/** 適用条件。指定した項目をすべて満たすときに適用する */
+/**
+ * 適用条件。指定した項目をすべて満たすときに適用する。
+ * ただし店舗の条件は、store_group_ids と store_ids のどちらかに該当すればよい
+ */
 export interface Applies {
   pay_types?: PayType[];
   store_group_ids?: string[];

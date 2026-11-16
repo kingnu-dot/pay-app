@@ -24,9 +24,9 @@ export interface AnnualStatus {
   remaining_days: number;
   /** 残り日数で均等に使う場合の 1日あたり必要額 [円]（切り上げ） */
   required_per_day_yen: number;
-  /** 日割りの直線で見た、今日までに使っているべき額 [円] */
+  /** 日割りの直線で見た、今日までに使っているべき額 [円]（表示用。1 円未満は切り捨て） */
   pace_yen: number;
-  /** 累計が pace_yen を下回っているか */
+  /** 累計が日割りの直線（目標 × 経過日数 ÷ 期間日数。切り捨てない値）を下回っているか */
   behind: boolean;
   achieved: boolean;
 }
@@ -74,7 +74,8 @@ export function annualStatus(args: {
     remaining_days,
     required_per_day_yen: divCeil(remaining_yen, remaining_days),
     pace_yen,
-    behind: !achieved && counted_yen < pace_yen,
+    // 切り捨てた pace_yen と比べると 1 円ずれるので、割り算をせず整数の掛け算どうしで比べる
+    behind: !achieved && counted_yen * total_days < target_yen * elapsed_days,
     achieved,
   };
 }

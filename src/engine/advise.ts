@@ -10,11 +10,13 @@ import type { Cap, Loyalty, Meta, Method, Redemption, RewardRule, Rules, Store }
 export const STALE_DAYS = 90;
 /** valid_to までこの日数以内のルールを「まもなく終了」とする [日] */
 export const EXPIRING_DAYS = 30;
+/** 年間目標の優先に使う閾値の既定値 [円]（設定画面で変更できる） */
+export const DEFAULT_ANNUAL_THRESHOLD_YEN = 5;
 
 export interface AdviseInput extends RankInput {
   /** カードごとの、今期の年間利用額の累計（集計対象の決済だけ）[円]。記録がないカードは 0 として扱う */
   annual_spent_yen?: Readonly<Record<string, number>>;
-  /** ペース遅れのとき、1位との差がこの額以内なら目標のあるカードを優先する [円] */
+  /** ペース遅れのとき、1位との差がこの額以内なら目標のあるカードを優先する [円]。省略時は既定値 */
   annual_threshold_yen?: number;
 }
 
@@ -51,6 +53,11 @@ export interface RedemptionNotice {
   point_name: string;
   /** 1会計で使えるポイントの上限 [ポイント]。上限なしは null */
   cap_points: number | null;
+  /**
+   * 上限の期間。day のときは「その日最初の会計」と仮定して 1会計の上限として扱っている
+   * （同じ日に複数回使う場合は、合計が上限を超えないよう画面で注意を出す）
+   */
+  cap_period: "txn" | "day" | null;
   /** この会計で使うポイント数 [ポイント]。金額未入力は null */
   use_points: number | null;
   /** ポイントで払える額 [円]。金額未入力は null */
@@ -109,12 +116,14 @@ function buildRedemptions(rules: Rules, store: Store | null, amount_yen: number 
     if (redemption.days_of_month && !redemption.days_of_month.includes(day)) continue;
     if (!isActive(redemption.meta, date)) continue;
     const cap = redemption.meta.cap;
-    const cap_points = cap !== null && cap.unit === "point" && cap.period === "txn" ? cap.amount : null;
+    const cap_period = cap !== null && (cap.period === "txn" || cap.period === "day") ? cap.period : null;
+    const cap_points = cap !== null && cap.unit === "point" && cap_period !== null ? cap.amount : null;
     const point_name = rules.points.find((p) => p.id === redemption.point_id)?.name ?? redemption.point_id;
     const notice: RedemptionNotice = {
       redemption,
       point_name,
       cap_points,
+      cap_period: cap_points === null ? null : cap_period,
       use_points: null,
       covered_yen: null,
       remainder_yen: null,
@@ -136,8 +145,11 @@ function buildRedemptions(rules: Rules, store: Store | null, amount_yen: number 
 /** おすすめの支払い手段を判定する */
 export function recommend(input: AdviseInput): Recommendation {
   const { rules, amount_yen, date } = input;
-  const threshold_yen = input.annual_threshold_yen ?? 0;
+  const threshold_yen = input.annual_threshold_yen ?? DEFAULT_ANNUAL_THRESHOLD_YEN;
   assertInt(threshold_yen, "annual_threshold_yen");
+  if (threshold_yen < 0) {
+    throw new RangeError(`annual_threshold_yen は 0 以上である必要があります: ${threshold_yen}`);
+  }
   const { store, candidates } = rankMethods(input);
 
   // 年間目標の状況
@@ -155,33 +167,48 @@ export function recommend(input: AdviseInput): Recommendation {
   }
   const behind_card_ids = new Set(annual.filter((a) => a.status.behind).map((a) => a.card_id));
 
-  // ペース遅れのカードで払える最上位の候補が、1位との差が閾値以内なら1位にする
+  // 年間目標による優先：
+  // - 1位がすでにペース遅れのカードなら、入れ替えない（その支払いで目標の1つに貢献できるため）
+  // - そうでなければ、ペース遅れのカードで払える候補のうち、1位との差が閾値以内で最も上位のものを1位にする
+  // - 優先されなかったペース遅れのカードは、順位を変えずに知らせるだけにする
   let promotion: Promotion | null = null;
-  const pace_alert_card_ids: string[] = [];
   const ordered = [...candidates];
-  const top = ordered[0];
-  const index = ordered.findIndex((c) => {
+  const isBehind = (c: Candidate): string | null => {
     const card_id = annualCardId(c.method);
-    return card_id !== null && behind_card_ids.has(card_id);
-  });
-  const behind_candidate = index >= 0 ? ordered[index] : undefined;
-  if (top && behind_candidate) {
-    const card_id = annualCardId(behind_candidate.method) as string;
-    if (index > 0) {
-      const diff_milliyen =
-        top.total_milliyen !== null && behind_candidate.total_milliyen !== null
-          ? top.total_milliyen - behind_candidate.total_milliyen
-          : null;
-      if (diff_milliyen !== null && diff_milliyen <= threshold_yen * MILLIYEN_PER_YEN) {
+    return card_id !== null && behind_card_ids.has(card_id) ? card_id : null;
+  };
+  const served_card_ids = new Set<string>();
+  const top = ordered[0];
+  if (top) {
+    const top_card_id = isBehind(top);
+    const top_total = top.total_milliyen;
+    if (top_card_id !== null) {
+      served_card_ids.add(top_card_id);
+    } else if (top_total !== null) {
+      // 金額未入力のときは差を円で比べられないので、入れ替えない
+      const index = ordered.findIndex(
+        (c) =>
+          isBehind(c) !== null &&
+          c.total_milliyen !== null &&
+          top_total - c.total_milliyen <= threshold_yen * MILLIYEN_PER_YEN,
+      );
+      const chosen = index > 0 ? ordered[index] : undefined;
+      const chosen_card_id = chosen ? isBehind(chosen) : null;
+      if (chosen && chosen_card_id !== null && chosen.total_milliyen !== null) {
         ordered.splice(index, 1);
-        ordered.unshift(behind_candidate);
-        promotion = { method_id: behind_candidate.method.id, card_id, diff_milliyen };
-      } else {
-        // 金額未入力、または差が閾値を超える場合は、順位を変えずに知らせるだけにする
-        pace_alert_card_ids.push(card_id);
+        ordered.unshift(chosen);
+        served_card_ids.add(chosen_card_id);
+        promotion = {
+          method_id: chosen.method.id,
+          card_id: chosen_card_id,
+          diff_milliyen: top_total - chosen.total_milliyen,
+        };
       }
     }
   }
+  const pace_alert_card_ids = [...behind_card_ids].filter(
+    (card_id) => !served_card_ids.has(card_id) && ordered.some((c) => isBehind(c) === card_id),
+  );
 
   return {
     store,

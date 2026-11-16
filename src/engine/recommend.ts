@@ -1,6 +1,7 @@
 // 判定エンジンの中核：支払い手段ごとの還元を計算し、円換算額の大きい順に並べる
 // 画面や保存に依存しない純粋な関数だけを置く
 
+import { toEpochDay } from "./dates";
 import { assertInt, divFloor } from "./money";
 import { pointsPerTxn } from "./reward";
 import type { Cap, Meta, Method, PayType, Point, RewardRule, Rules, Store } from "../rules/types";
@@ -34,7 +35,10 @@ export interface RewardComponent {
   value_milliyen: number | null;
   /** 名目の還元率 [ppm]（1% = 10,000） */
   rate_ppm: number;
-  /** 1回の利用以外の上限（計算には反映していない。表示用） */
+  /**
+   * このルールの上限（表示用）。1回あたり（txn）の上限だけ計算に反映している。
+   * unit が yen のときは「還元の対象になる金額の上限」、point のときは「付与されるポイントの上限」
+   */
   cap_note: Cap | null;
   /** 出典が未検証のルールか */
   unverified: boolean;
@@ -69,13 +73,13 @@ interface MatchContext {
   day_of_month: number;
 }
 
-const DATE_PATTERN = /^\d{4}-(\d{2})-(\d{2})$/;
+/** 判定できる金額の上限 [円]。これを超える入力は例外にする（整数演算が安全な範囲に収めるため） */
+export const MAX_AMOUNT_YEN = 1_000_000_000;
 
-/** YYYY-MM-DD から日（1〜31）を取り出す */
+/** YYYY-MM-DD から日（1〜31）を取り出す。書式違いや存在しない日付は例外 */
 export function dayOfMonth(date: string): number {
-  const m = DATE_PATTERN.exec(date);
-  if (!m) throw new RangeError(`日付は YYYY-MM-DD で指定してください: ${date}`);
-  return Number(m[2]);
+  toEpochDay(date);
+  return Number(date.slice(8, 10));
 }
 
 /** 有効期間内か（両端を含む。null は制限なし）。YYYY-MM-DD は文字列のまま大小比較できる */
@@ -98,6 +102,7 @@ function ruleApplies(rule: RewardRule, ctx: MatchContext): boolean {
     // 払い方を省略したルールは購入だけが対象。チャージには明示したルールだけを使う
     return false;
   }
+  // 店舗の条件：グループと店舗のどちらかに該当すればよい
   if (a.store_group_ids || a.store_ids) {
     const store = ctx.store;
     if (!store) return false;
@@ -131,7 +136,7 @@ function evaluate(
     points: null,
     value_milliyen: null,
     rate_ppm: divFloor(per_unit_milliyen * 1000, rule.unit_yen),
-    cap_note: cap !== null && cap.period !== "txn" ? cap : null,
+    cap_note: cap,
     unverified: rule.meta.confidence === "unverified",
     meta: rule.meta,
   };
@@ -208,7 +213,9 @@ export function rankMethods(input: RankInput): Ranking {
   const { rules, amount_yen, date } = input;
   if (amount_yen !== null) {
     assertInt(amount_yen, "amount_yen");
-    if (amount_yen < 0) throw new RangeError(`amount_yen は 0 以上である必要があります: ${amount_yen}`);
+    if (amount_yen < 0 || amount_yen > MAX_AMOUNT_YEN) {
+      throw new RangeError(`amount_yen は 0 以上 ${MAX_AMOUNT_YEN} 以下である必要があります: ${amount_yen}`);
+    }
   }
   const day_of_month = dayOfMonth(date);
   const store = rules.stores.find((s) => s.id === input.store_id) ?? null;

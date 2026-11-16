@@ -208,6 +208,10 @@
           "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
         },
         "funding": { "$ref": "#/$defs/funding" },
+        "only_store_group_ids": {
+          "description": "この手段を使う店舗を限定する。指定した店舗グループのどれかに属する店舗でだけ候補にする（未登録の店では候補にしない）",
+          "$ref": "#/$defs/id_list_nonempty"
+        },
         "rewards": {
           "description": "手段そのものの還元（利用時に付くポイントなど）",
           "type": "array",

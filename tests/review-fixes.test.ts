@@ -93,6 +93,48 @@ describe("店舗グループの有効期間", () => {
   });
 });
 
+describe("使う店舗を限定した支払い手段（カードB の差し込みを提携店だけで使う）", () => {
+  const rules = variant((r) => {
+    const method = r.methods.find((m) => m.id === "card_b_insert");
+    if (method) method.only_store_group_ids = ["group_partner"];
+  });
+  const ids = (store_id: string | null, date = DATE) =>
+    rankMethods({ rules, store_id, amount_yen: 1000, date }).candidates.map((c) => c.method.id);
+
+  it("限定したグループの店舗では候補になる", () => {
+    expect(ids("store_t")[0]).toBe("card_b_insert");
+    expect(ids("store_v")).toContain("card_b_insert");
+  });
+
+  it("グループ外の店舗と未登録の店では候補にならない", () => {
+    expect(ids("store_s")).not.toContain("card_b_insert");
+    expect(ids(null)).not.toContain("card_b_insert");
+  });
+
+  it("限定していない手段（同じカードでチャージする交通系IC）には影響しない", () => {
+    expect(ids("store_s")).toContain("transit_from_card_b");
+  });
+
+  it("グループの有効期間が切れると、その店舗でも候補にならない", () => {
+    const expired = variant((r) => {
+      const method = r.methods.find((m) => m.id === "card_b_insert");
+      if (method) method.only_store_group_ids = ["group_partner"];
+      const group = r.store_groups.find((g) => g.id === "group_partner");
+      if (group) group.meta.valid_to = "2025-12-31";
+    });
+    const at = (date: string) =>
+      rankMethods({ rules: expired, store_id: "store_t", amount_yen: 1000, date }).candidates.map((c) => c.method.id);
+    expect(at("2025-12-31")).toContain("card_b_insert");
+    expect(at("2026-01-01")).not.toContain("card_b_insert");
+  });
+
+  it("存在しない店舗グループを指定すると検証で不合格になり、空の一覧も不合格", () => {
+    expect(invalid((r) => { const m = r.methods[0]; if (m) m.only_store_group_ids = ["group_none"]; })
+      .some((e) => e.includes("group_none"))).toBe(true);
+    expect(invalid((r) => { const m = r.methods[0]; if (m) m.only_store_group_ids = []; }).length).toBeGreaterThan(0);
+  });
+});
+
 describe("まもなく終了の境目（終了日 2026-02-09 のルール）", () => {
   const rules = variant((r) => {
     rewardOf(r, "card_a", "card_a_base").meta.valid_to = "2026-02-09";

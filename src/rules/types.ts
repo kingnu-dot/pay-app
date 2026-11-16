@@ -110,6 +110,8 @@ export interface Method {
   pay_type: PurchasePayType;
   card_id: string | null;
   funding?: Funding;
+  /** この手段を使う店舗の限定。指定した店舗グループのどれかに属する店舗でだけ候補にする */
+  only_store_group_ids?: string[];
   rewards?: RewardRule[];
   earns_points: boolean;
   counts_toward_annual: boolean;

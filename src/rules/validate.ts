@@ -98,6 +98,7 @@ export function checkIntegrity(rules: Rules): string[] {
     const where = `methods/${method.id}`;
     if (method.card_id !== null) requireRef(where, "cards", cardIds, method.card_id);
     if (method.funding && method.funding.card_id !== null) requireRef(where, "cards", cardIds, method.funding.card_id);
+    for (const id of method.only_store_group_ids ?? []) requireRef(where, "store_groups", groupIds, id);
     if (method.card_id !== null && method.funding) {
       errors.push(`${where}: card_id と funding は同時に指定できません`);
     }

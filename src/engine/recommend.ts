@@ -200,8 +200,15 @@ function selectComponents(
 }
 
 /** その店舗で、その支払い手段を使えるか */
-function isUsable(method: Method, store: Store | null, disabled: ReadonlySet<string>): boolean {
+function isUsable(
+  method: Method,
+  store: Store | null,
+  group_ids: ReadonlySet<string>,
+  disabled: ReadonlySet<string>,
+): boolean {
   if (disabled.has(method.id)) return false;
+  // 使う店舗を限定した手段は、その店舗グループ（有効期間内）に属する店舗でだけ候補にする
+  if (method.only_store_group_ids && !method.only_store_group_ids.some((id) => group_ids.has(id))) return false;
   // ポイント払いは順位に入れず、案内として別に表示する
   if (method.pay_type === "point_use") return false;
   const is_online_store = store?.channel === "online";
@@ -244,7 +251,7 @@ export function rankMethods(input: RankInput): Ranking {
 
   const candidates: Candidate[] = [];
   for (const method of rules.methods) {
-    if (!isUsable(method, store, disabled)) continue;
+    if (!isUsable(method, store, group_ids, disabled)) continue;
     const components: RewardComponent[] = [];
     if (method.earns_points) {
       const card = method.card_id === null ? undefined : cards.get(method.card_id);

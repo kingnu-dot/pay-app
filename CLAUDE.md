@@ -26,8 +26,10 @@
 - ルール JSON は JSON Schema で検証し、不正なら前回の正常版を使い続ける。
 
 ## コマンド
-<!-- 技術スタック確定後に Claude Code が実際のコマンドへ書き換える -->
-- テスト：`npm test`
-- 型チェック・lint：`npm run lint`
-- ビルド：`npm run build`
+技術スタック：TypeScript + Vite + Preact + Vitest（Node.js 26 / npm 11 で確認）
+- 依存の導入：`npm install`
+- 開発サーバ：`npm run dev`
+- テスト：`npm test`（Vitest。`tests/**/*.test.ts`）
+- 型チェック・lint：`npm run lint`（`tsc --noEmit` と ESLint）
+- ビルド：`npm run build`（出力は `dist/`。配信パスは `/pay-app/`）
 - 漏洩チェック（手動）：`node "$HOME/.claude/hooks/leak-check.mjs" --manual .`

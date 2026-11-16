@@ -6,6 +6,7 @@ import { toJstDate } from "./engine/dates";
 import { adjustmentFor, sumAnnualSpent } from "./engine/spend";
 import { fetchRules } from "./rules/fetch";
 import { syncRules, type SyncResult } from "./rules/sync";
+import type { Rules } from "./rules/types";
 import { mergeRules, type Settings } from "./settings/settings";
 import {
   addSpend,
@@ -14,6 +15,7 @@ import {
   listSpend,
   loadRulesConfig,
   loadSettings,
+  saveRulesConfig,
   saveSettings,
   type RulesConfig,
   type SpendEntry,
@@ -21,6 +23,7 @@ import {
 import { Annual } from "./ui/Annual";
 import { problemText } from "./ui/explain";
 import { Home, type PaidRecord } from "./ui/Home";
+import { SettingsScreen } from "./ui/SettingsScreen";
 
 interface AppData {
   config: RulesConfig;
@@ -44,10 +47,23 @@ async function loadAll(): Promise<AppData> {
   return { config, sync, settings, spend };
 }
 
-type Tab = "home" | "annual";
+/** ルールが無いときに設定画面へ渡す、空のルール */
+const EMPTY_RULES: Rules = {
+  schema_version: 1,
+  updated_at: "1970-01-01",
+  points: [],
+  cards: [],
+  methods: [],
+  stores: [],
+  store_groups: [],
+  redemptions: [],
+};
+
+type Tab = "home" | "annual" | "settings";
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: "home", label: "ホーム" },
   { id: "annual", label: "年間目標" },
+  { id: "settings", label: "設定" },
 ];
 
 export function App() {
@@ -148,6 +164,11 @@ export function App() {
     setData({ ...data, spend: await listSpend() });
   };
 
+  const saveConfig = async (next: RulesConfig) => {
+    await saveRulesConfig(next);
+    await reload();
+  };
+
   const problem = problemText(data.sync.problem, merged !== null);
 
   return (
@@ -172,7 +193,19 @@ export function App() {
           onDeleteEntry={removeEntry}
         />
       )}
-      {merged && tab !== "home" ? null : merged ? (
+      {tab === "settings" && (
+        <SettingsScreen
+          official={data.sync.rules ?? EMPTY_RULES}
+          merged={merged?.rules ?? EMPTY_RULES}
+          settings={data.settings}
+          config={data.config}
+          sync={data.sync}
+          onSaveSettings={updateSettings}
+          onSaveConfig={saveConfig}
+          onRefetch={reload}
+        />
+      )}
+      {tab !== "home" ? null : merged ? (
         <Home
           rules={merged.rules}
           settings={data.settings}
@@ -184,7 +217,7 @@ export function App() {
       ) : (
         <section class="card">
           <h2>はじめに</h2>
-          <p>ルールがまだありません。</p>
+          <p>ルールがまだありません。「設定」でルールの取得先とアクセストークンを入力してください。</p>
         </section>
       )}
       {import.meta.env.DEV && <DevTools onLoaded={reload} />}

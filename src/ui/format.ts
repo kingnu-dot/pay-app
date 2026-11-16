@@ -40,6 +40,21 @@ export function formatDate(date: string): string {
   return `${y}/${m}/${d}`;
 }
 
+/** 1/1000 円を、入力欄に出す円の数値（「1.5」「1」）にする */
+export function milliyenToInput(milliyen: number): string {
+  const whole = Math.floor(milliyen / 1000);
+  const fraction = String(milliyen % 1000).padStart(3, "0").replace(/0+$/, "");
+  return fraction === "" ? String(whole) : `${whole}.${fraction}`;
+}
+
+/** 円の入力（「1.5」など、小数第3位まで）を 1/1000 円にする。読めなければ null */
+export function parseYenValue(text: string): number | null {
+  const cleaned = text.normalize("NFKC").replace(/[,\s円¥]/g, "");
+  const m = /^(\d{1,4})(?:\.(\d{1,3}))?$/.exec(cleaned);
+  if (!m) return null;
+  return Number(m[1]) * 1000 + Number((m[2] ?? "").padEnd(3, "0"));
+}
+
 export type AmountInput = { ok: true; amount_yen: number | null } | { ok: false; message: string };
 
 /** 金額の入力を読み取る。空欄は「未入力」。全角数字や桁区切りのカンマも受け付ける */

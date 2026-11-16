@@ -386,3 +386,54 @@ summary {
   font-weight: 700;
   border-top-color: var(--accent);
 }
+
+.field {
+  display: block;
+  margin: 8px 0 4px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.field-label {
+  flex-basis: 100%;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 4px 8px;
+  padding: 4px 0;
+}
+
+.row > .field {
+  flex: 1 1 100%;
+}
+
+.select {
+  width: auto;
+  flex: 1;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.check input {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.spaced {
+  margin-top: 16px;
+}
+
+.danger {
+  color: #b91c1c;
+}

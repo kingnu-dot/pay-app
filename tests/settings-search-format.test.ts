@@ -6,7 +6,16 @@ import { defaultSettings, mergeRules, newCustomStoreId, normalizeSettings, type 
 import { parseRules } from "../src/rules/validate";
 import type { Rules } from "../src/rules/types";
 import { breakdownLine, noticeText, problemText, reasonText, redemptionDetail } from "../src/ui/explain";
-import { formatCap, formatDate, formatMilliyen, formatRate, formatYen, parseAmount } from "../src/ui/format";
+import {
+  formatCap,
+  formatDate,
+  formatMilliyen,
+  formatRate,
+  formatYen,
+  milliyenToInput,
+  parseAmount,
+  parseYenValue,
+} from "../src/ui/format";
 import sample from "./fixtures/sample-rules.json";
 
 const parsed = parseRules(sample);
@@ -216,6 +225,20 @@ describe("表示の整形", () => {
     expect(formatRate(105_000)).toBe("10.5%");
     expect(formatRate(7_500)).toBe("0.75%");
     expect(formatRate(0)).toBe("0%");
+  });
+
+  it("評価額の入力：円の小数を 1/1000 円にし、入力欄へ戻すときは末尾の 0 を省く", () => {
+    expect(parseYenValue("1.5")).toBe(1500);
+    expect(parseYenValue("1")).toBe(1000);
+    expect(parseYenValue("０．７５円")).toBe(750);
+    expect(parseYenValue("0.001")).toBe(1);
+    expect(parseYenValue("1.2345")).toBeNull();
+    expect(parseYenValue("-1")).toBeNull();
+    expect(parseYenValue("")).toBeNull();
+    expect(milliyenToInput(1500)).toBe("1.5");
+    expect(milliyenToInput(1000)).toBe("1");
+    expect(milliyenToInput(750)).toBe("0.75");
+    expect(milliyenToInput(0)).toBe("0");
   });
 
   it("上限と日付", () => {

@@ -1,0 +1,436 @@
+// 設定画面：ルールの取得設定と、個人上書き層（すべてフォームで編集する。JSON の直接編集は不要）
+
+import { useState } from "preact/hooks";
+import { checkSource, isTokenFormatValid, type RulesSource } from "../rules/fetch";
+import type { SyncResult } from "../rules/sync";
+import type { RewardRule, Rules } from "../rules/types";
+import {
+  MAX_POINT_VALUE_MILLIYEN,
+  MAX_THRESHOLD_YEN,
+  newCustomStoreId,
+  type Settings,
+} from "../settings/settings";
+import type { RulesConfig } from "../storage/db";
+import { milliyenToInput, parseAmount, parseYenValue } from "./format";
+
+interface Props {
+  /** 公式ルール（個人設定を合成する前） */
+  official: Rules;
+  /** 合成後のルール */
+  merged: Rules;
+  settings: Settings;
+  config: RulesConfig;
+  sync: SyncResult;
+  onSaveSettings: (next: Settings) => Promise<void>;
+  /** 取得設定を保存して、ルールを取り直す */
+  onSaveConfig: (next: RulesConfig) => Promise<void>;
+  onRefetch: () => Promise<void>;
+}
+
+/** 区切り文字（読点・カンマ・改行）で分けた別名の一覧にする */
+const splitAliases = (text: string): string[] => [
+  ...new Set(text.split(/[、,\n]/).map((s) => s.trim()).filter((s) => s !== "")),
+];
+
+export function SettingsScreen(props: Props) {
+  return (
+    <div class="screen">
+      <RulesSourceForm {...props} />
+      {props.sync.rules && (
+        <>
+          <PointValues {...props} />
+          <AnnualSettings {...props} />
+          <MethodToggles {...props} />
+          <StoreSettings {...props} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function RulesSourceForm({ config, sync, onSaveConfig, onRefetch }: Props) {
+  const [owner, setOwner] = useState(config.source?.owner ?? "");
+  const [repo, setRepo] = useState(config.source?.repo ?? "");
+  const [path, setPath] = useState(config.source?.path ?? "rules/rules.json");
+  const [token, setToken] = useState("");
+  const [errors, setErrors] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    const source: RulesSource = { owner: owner.trim(), repo: repo.trim(), path: path.trim() };
+    const problems = checkSource(source);
+    // トークン欄が空なら、保存済みのトークンをそのまま使う
+    const next_token = token.trim() === "" ? config.token : token.trim();
+    if (next_token === null) problems.push("アクセストークンを入力してください");
+    else if (!isTokenFormatValid(next_token)) problems.push("アクセストークンの形式が正しくありません（前後の空白や改行を確認）");
+    setErrors(problems);
+    if (problems.length > 0) return;
+    setBusy(true);
+    try {
+      await onSaveConfig({ source, token: next_token });
+      setToken("");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <details class="card" open={sync.rules === null}>
+      <summary>ルールの取得</summary>
+      <p class="hint">
+        {sync.fetched_at ? `使用中のルール：${new Date(sync.fetched_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })} 取得` : "ルールは未取得です。"}
+      </p>
+      <label class="field">
+        所有者名
+        <input class="input" type="text" autocomplete="off" autocapitalize="off" value={owner} onInput={(e) => setOwner(e.currentTarget.value)} />
+      </label>
+      <label class="field">
+        リポジトリ名
+        <input class="input" type="text" autocomplete="off" autocapitalize="off" value={repo} onInput={(e) => setRepo(e.currentTarget.value)} />
+      </label>
+      <label class="field">
+        ファイルパス
+        <input class="input" type="text" autocomplete="off" autocapitalize="off" value={path} onInput={(e) => setPath(e.currentTarget.value)} />
+      </label>
+      <label class="field">
+        アクセストークン（{config.token ? "保存済み。変更するときだけ入力" : "未保存"}）
+        <input class="input" type="password" autocomplete="off" value={token} onInput={(e) => setToken(e.currentTarget.value)} />
+      </label>
+      <p class="hint">
+        トークンは、対象のリポジトリ1つだけ・Contents の読み取り専用で発行したものを使います。この端末の中にだけ保存し、バックアップには含めません。
+      </p>
+      {errors.map((e) => (
+        <p key={e} class="error">
+          {e}
+        </p>
+      ))}
+      <button type="button" class="secondary" disabled={busy} onClick={() => void save()}>
+        保存して取得
+      </button>
+      {config.source && config.token && (
+        <button type="button" class="link" disabled={busy} onClick={() => void onRefetch()}>
+          今すぐ再取得
+        </button>
+      )}
+    </details>
+  );
+}
+
+function PointValues({ official, settings, onSaveSettings }: Props) {
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async (point_id: string) => {
+    const value = parseYenValue(drafts[point_id] ?? "");
+    if (value === null || value > MAX_POINT_VALUE_MILLIYEN) {
+      setError("評価額は 0〜1000 円の数値（小数第3位まで）で入力してください");
+      return;
+    }
+    setError(null);
+    await onSaveSettings({ ...settings, point_values_milliyen: { ...settings.point_values_milliyen, [point_id]: value } });
+    setDrafts(({ [point_id]: _saved, ...rest }) => rest);
+  };
+  const reset = async (point_id: string) => {
+    const { [point_id]: _removed, ...rest } = settings.point_values_milliyen;
+    await onSaveSettings({ ...settings, point_values_milliyen: rest });
+  };
+
+  return (
+    <details class="card">
+      <summary>ポイントの評価額</summary>
+      {official.points.map((p) => {
+        const override = settings.point_values_milliyen[p.id];
+        const current = override ?? p.value_milliyen;
+        return (
+          <div key={p.id} class="row">
+            <label class="field">
+              {p.name}（1 ポイント = 何円か。公式の既定値 {milliyenToInput(p.value_milliyen)} 円）
+              <input
+                class="input"
+                type="text"
+                inputMode="decimal"
+                value={drafts[p.id] ?? milliyenToInput(current)}
+                onInput={(e) => setDrafts({ ...drafts, [p.id]: e.currentTarget.value })}
+              />
+            </label>
+            <button type="button" class="link" disabled={drafts[p.id] === undefined} onClick={() => void save(p.id)}>
+              保存
+            </button>
+            {override !== undefined && (
+              <button type="button" class="link" onClick={() => void reset(p.id)}>
+                既定値に戻す
+              </button>
+            )}
+          </div>
+        );
+      })}
+      {error && <p class="error">{error}</p>}
+    </details>
+  );
+}
+
+function AnnualSettings({ merged, settings, onSaveSettings }: Props) {
+  const [threshold, setThreshold] = useState(String(settings.annual_threshold_yen));
+  const [error, setError] = useState<string | null>(null);
+  const cards = merged.cards.filter((c) => c.annual_target);
+
+  const saveThreshold = async () => {
+    const parsed = parseAmount(threshold);
+    if (!parsed.ok || parsed.amount_yen === null || parsed.amount_yen > MAX_THRESHOLD_YEN) {
+      setError(`閾値は 0〜${MAX_THRESHOLD_YEN.toLocaleString("ja-JP")} 円の整数で入力してください`);
+      return;
+    }
+    setError(null);
+    await onSaveSettings({ ...settings, annual_threshold_yen: parsed.amount_yen });
+  };
+  const savePeriod = async (card_id: string, month: number, day: number) => {
+    await onSaveSettings({ ...settings, annual_period_start: { ...settings.annual_period_start, [card_id]: { month, day } } });
+  };
+
+  return (
+    <details class="card">
+      <summary>年間目標</summary>
+      <label class="field">
+        優先する差額の上限（ペース遅れのとき、1位との差がこの額以内なら目標のあるカードを1位にする）[円]
+        <input class="input" type="text" inputMode="numeric" value={threshold} onInput={(e) => setThreshold(e.currentTarget.value)} />
+      </label>
+      <button type="button" class="link" onClick={() => void saveThreshold()}>
+        保存
+      </button>
+      {error && <p class="error">{error}</p>}
+      {cards.map((card) => {
+        const target = card.annual_target;
+        if (!target) return null;
+        return (
+          <div key={card.id} class="row">
+            <span class="field-label">{card.name}：集計の開始日</span>
+            <select
+              class="input select"
+              aria-label={`${card.name}の集計開始月`}
+              value={target.period_start_month}
+              onChange={(e) => void savePeriod(card.id, Number(e.currentTarget.value), target.period_start_day)}
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>
+                  {m} 月
+                </option>
+              ))}
+            </select>
+            <select
+              class="input select"
+              aria-label={`${card.name}の集計開始日`}
+              value={target.period_start_day}
+              onChange={(e) => void savePeriod(card.id, target.period_start_month, Number(e.currentTarget.value))}
+            >
+              {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={d}>
+                  {d} 日
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      })}
+    </details>
+  );
+}
+
+function MethodToggles({ merged, settings, onSaveSettings }: Props) {
+  const toggle = async (method_id: string, enabled: boolean) => {
+    const disabled = new Set(settings.disabled_method_ids);
+    if (enabled) disabled.delete(method_id);
+    else disabled.add(method_id);
+    await onSaveSettings({ ...settings, disabled_method_ids: [...disabled] });
+  };
+  return (
+    <details class="card">
+      <summary>支払い手段（使うものにチェック）</summary>
+      {merged.methods.map((m) => (
+        <label key={m.id} class="check">
+          <input
+            type="checkbox"
+            checked={!settings.disabled_method_ids.includes(m.id)}
+            onChange={(e) => void toggle(m.id, e.currentTarget.checked)}
+          />
+          {m.label}
+        </label>
+      ))}
+    </details>
+  );
+}
+
+function StoreSettings({ official, merged, settings, onSaveSettings }: Props) {
+  const [name, setName] = useState("");
+  const [aliases, setAliases] = useState("");
+  const [online, setOnline] = useState(false);
+  const [selected_id, setSelectedId] = useState("");
+  const [alias_draft, setAliasDraft] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const add = async () => {
+    const trimmed = name.trim();
+    if (trimmed === "" || trimmed.length > 100) {
+      setError("店名を入力してください（100 文字まで）");
+      return;
+    }
+    setError(null);
+    const id = newCustomStoreId(merged.stores.map((s) => s.id));
+    await onSaveSettings({
+      ...settings,
+      custom_stores: [...settings.custom_stores, { id, name: trimmed, aliases: splitAliases(aliases), channel: online ? "online" : "in_store" }],
+    });
+    setName("");
+    setAliases("");
+    setOnline(false);
+    setSelectedId(id);
+  };
+
+  const store = merged.stores.find((s) => s.id === selected_id);
+  const is_custom = settings.custom_stores.some((s) => s.id === selected_id);
+  // この店舗を条件にしている還元ルール（店舗単位の例外にできるもの）
+  const group_ids = new Set(official.store_groups.filter((g) => g.store_ids.includes(selected_id)).map((g) => g.id));
+  const targeting: Array<{ rule: RewardRule; owner: string }> = [
+    ...official.cards.flatMap((c) => c.rewards.map((rule) => ({ rule, owner: c.name }))),
+    ...official.methods.flatMap((m) => (m.rewards ?? []).map((rule) => ({ rule, owner: m.label }))),
+  ].filter(
+    ({ rule }) =>
+      (rule.applies.store_ids ?? []).includes(selected_id) || (rule.applies.store_group_ids ?? []).some((id) => group_ids.has(id)),
+  );
+
+  const saveAliases = async () => {
+    if (alias_draft === null) return;
+    const list = splitAliases(alias_draft);
+    if (is_custom) {
+      await onSaveSettings({
+        ...settings,
+        custom_stores: settings.custom_stores.map((s) => (s.id === selected_id ? { ...s, aliases: list } : s)),
+      });
+    } else {
+      const { [selected_id]: _old, ...rest } = settings.extra_aliases;
+      await onSaveSettings({ ...settings, extra_aliases: list.length > 0 ? { ...rest, [selected_id]: list } : rest });
+    }
+    setAliasDraft(null);
+  };
+  const toggleException = async (rule_id: string, excluded: boolean) => {
+    const others = settings.store_exceptions.filter((e) => !(e.store_id === selected_id && e.rule_id === rule_id));
+    await onSaveSettings({
+      ...settings,
+      store_exceptions: excluded ? [...others, { store_id: selected_id, rule_id }] : others,
+    });
+  };
+  const toggleUnusable = async (method_id: string, unusable: boolean) => {
+    const current = new Set(settings.unusable_methods[selected_id] ?? []);
+    if (unusable) current.add(method_id);
+    else current.delete(method_id);
+    const { [selected_id]: _old, ...rest } = settings.unusable_methods;
+    await onSaveSettings({ ...settings, unusable_methods: current.size > 0 ? { ...rest, [selected_id]: [...current] } : rest });
+  };
+  const removeCustom = async () => {
+    if (!confirm(`「${store?.name ?? ""}」を削除しますか？`)) return;
+    const { [selected_id]: _a, ...unusable_methods } = settings.unusable_methods;
+    await onSaveSettings({
+      ...settings,
+      custom_stores: settings.custom_stores.filter((s) => s.id !== selected_id),
+      favorite_store_ids: settings.favorite_store_ids.filter((id) => id !== selected_id),
+      unusable_methods,
+    });
+    setSelectedId("");
+  };
+
+  const own_aliases = is_custom
+    ? (settings.custom_stores.find((s) => s.id === selected_id)?.aliases ?? [])
+    : (settings.extra_aliases[selected_id] ?? []);
+  const official_store = official.stores.find((s) => s.id === selected_id);
+
+  return (
+    <details class="card">
+      <summary>店舗</summary>
+      <h2>店舗を追加</h2>
+      <label class="field">
+        店名
+        <input class="input" type="text" value={name} onInput={(e) => setName(e.currentTarget.value)} />
+      </label>
+      <label class="field">
+        別名（「、」で区切る。任意）
+        <input class="input" type="text" value={aliases} onInput={(e) => setAliases(e.currentTarget.value)} />
+      </label>
+      <label class="check">
+        <input type="checkbox" checked={online} onChange={(e) => setOnline(e.currentTarget.checked)} />
+        通販の店舗
+      </label>
+      {error && <p class="error">{error}</p>}
+      <button type="button" class="secondary" onClick={() => void add()}>
+        追加
+      </button>
+
+      <h2 class="spaced">
+        <label for="store-edit">店舗ごとの設定</label>
+      </h2>
+      <select
+        id="store-edit"
+        class="input select"
+        value={selected_id}
+        onChange={(e) => {
+          setSelectedId(e.currentTarget.value);
+          setAliasDraft(null);
+        }}
+      >
+        <option value="">店舗を選ぶ</option>
+        {merged.stores.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name}
+            {settings.custom_stores.some((c) => c.id === s.id) ? "（追加した店舗）" : ""}
+          </option>
+        ))}
+      </select>
+
+      {store && (
+        <>
+          <label class="field">
+            {is_custom ? "別名" : "追加する別名"}（「、」で区切る）
+            {official_store && official_store.aliases.length > 0 && ` ／公式の別名：${official_store.aliases.join("、")}`}
+            <input
+              class="input"
+              type="text"
+              value={alias_draft ?? own_aliases.join("、")}
+              onInput={(e) => setAliasDraft(e.currentTarget.value)}
+            />
+          </label>
+          <button type="button" class="link" disabled={alias_draft === null} onClick={() => void saveAliases()}>
+            別名を保存
+          </button>
+
+          {targeting.length > 0 && <h2>この店では適用しない還元（商業施設内の店舗など）</h2>}
+          {targeting.map(({ rule, owner }) => (
+            <label key={rule.id} class="check">
+              <input
+                type="checkbox"
+                checked={settings.store_exceptions.some((e) => e.store_id === selected_id && e.rule_id === rule.id)}
+                onChange={(e) => void toggleException(rule.id, e.currentTarget.checked)}
+              />
+              {owner}：{rule.label}
+            </label>
+          ))}
+
+          <h2>この店で使えない支払い手段</h2>
+          {merged.methods.map((m) => (
+            <label key={m.id} class="check">
+              <input
+                type="checkbox"
+                checked={(settings.unusable_methods[selected_id] ?? []).includes(m.id)}
+                onChange={(e) => void toggleUnusable(m.id, e.currentTarget.checked)}
+              />
+              {m.label}
+            </label>
+          ))}
+
+          {is_custom && (
+            <button type="button" class="link danger" onClick={() => void removeCustom()}>
+              この店舗を削除
+            </button>
+          )}
+        </>
+      )}
+    </details>
+  );
+}

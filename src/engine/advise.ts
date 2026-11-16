@@ -85,6 +85,11 @@ function annualCardId(method: Method): string | null {
   return method.card_id ?? method.funding?.card_id ?? null;
 }
 
+/** 還元がすべて端数処理後の実付与量で確定しているか（期待値や還元率だけの内訳を含まない） */
+function isCertain(candidate: Candidate): boolean {
+  return candidate.components.length > 0 && candidate.components.every((c) => c.basis === "actual");
+}
+
 function isStale(meta: Meta, date: string): boolean {
   return daysBetween(meta.last_verified, date) >= STALE_DAYS;
 }
@@ -152,6 +157,16 @@ export function recommend(input: AdviseInput): Recommendation {
   }
   const { store, candidates } = rankMethods(input);
 
+  // 注意事項を先に求め、同額のときの並びを決める：
+  // (1) 還元額・還元率が大きい順 (2) 実付与量が確定している手段 (3) 注意事項がない手段 (4) ルールの記載順
+  const notices_of = new Map(candidates.map((c) => [c, buildNotices(c, amount_yen, date)]));
+  const has_notices = (c: Candidate): boolean => (notices_of.get(c)?.length ?? 0) > 0;
+  const compareCandidates = (a: Candidate, b: Candidate): number =>
+    (b.total_milliyen ?? 0) - (a.total_milliyen ?? 0) ||
+    b.rate_ppm - a.rate_ppm ||
+    Number(isCertain(b)) - Number(isCertain(a)) ||
+    Number(has_notices(a)) - Number(has_notices(b));
+
   // 年間目標の状況
   const annual: AnnualAdvice[] = [];
   for (const card of rules.cards) {
@@ -172,7 +187,7 @@ export function recommend(input: AdviseInput): Recommendation {
   // - そうでなければ、ペース遅れのカードで払える候補のうち、1位との差が閾値以内で最も上位のものを1位にする
   // - 優先されなかったペース遅れのカードは、順位を変えずに知らせるだけにする
   let promotion: Promotion | null = null;
-  const ordered = [...candidates];
+  const ordered = [...candidates].sort(compareCandidates);
   const isBehind = (c: Candidate): string | null => {
     const card_id = annualCardId(c.method);
     return card_id !== null && behind_card_ids.has(card_id) ? card_id : null;
@@ -212,7 +227,7 @@ export function recommend(input: AdviseInput): Recommendation {
 
   return {
     store,
-    advices: ordered.map((candidate) => ({ candidate, notices: buildNotices(candidate, amount_yen, date) })),
+    advices: ordered.map((candidate) => ({ candidate, notices: notices_of.get(candidate) ?? [] })),
     promotion,
     pace_alert_card_ids,
     annual,

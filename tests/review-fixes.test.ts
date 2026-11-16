@@ -138,10 +138,10 @@ describe("年間目標：目標のあるカードが複数遅れている場合"
     recommend({ rules, store_id: null, amount_yen: 1000, date: DATE, annual_spent_yen: both_behind, ...input });
 
   it("どちらも閾値以内なら、順位が上のほうを1位にし、もう一方は知らせる", () => {
-    // 未登録の店：カードC 15 円、カードA 10 円、カードB 10 円
+    // 未登録の店：カードC 15 円、カードB 10 円（実付与量が確定）、カードA 10 円（期待値）
     const r = advise({});
-    expect(r.promotion?.card_id).toBe("card_a");
-    expect(r.pace_alert_card_ids).toEqual(["card_b"]);
+    expect(r.promotion?.card_id).toBe("card_b");
+    expect(r.pace_alert_card_ids).toEqual(["card_a"]);
   });
 
   it("1位が遅れているカードなら入れ替えず、他の遅れているカードを知らせる", () => {
@@ -157,6 +157,40 @@ describe("年間目標：目標のあるカードが複数遅れている場合"
     const r = advise({ disabled_method_ids: ["card_a_gpay", "card_a_insert"] });
     expect(r.promotion?.card_id).toBe("card_b");
     expect(r.pace_alert_card_ids).toEqual([]);
+  });
+});
+
+describe("同額のときの並び", () => {
+  const order = (amount_yen: number | null) =>
+    recommend({ rules: base, store_id: null, amount_yen, date: DATE, annual_spent_yen: { card_a: 500_000 } }).advices.map(
+      (a) => a.candidate.method.id,
+    );
+
+  it("実付与量が確定している手段を、期待値の手段より上にする", () => {
+    // 1,000 円：カードB（1回ごとに確定、10 円）と カードA の2手段（月間合算の期待値、10 円）が同額。
+    // ルールの記載順は カードA が先だが、確定しているカードB を上にする
+    expect(order(1000).slice(0, 4)).toEqual(["card_c_quicpay", "card_b_insert", "card_a_gpay", "card_a_insert"]);
+  });
+
+  it("確定かどうかも同じなら、注意事項がない手段を上にする", () => {
+    // 9,000 円：カードA の2手段はどちらも期待値 90 円。スマホタッチには 8,000 円超の注意が付くので下にする
+    expect(order(9000).slice(0, 4)).toEqual(["card_c_quicpay", "card_b_insert", "card_a_insert", "card_a_gpay"]);
+  });
+
+  it("どちらも同じなら、ルールの記載順にする", () => {
+    // 8,000 円ちょうどでは注意が付かないので、記載順（スマホタッチが先）に戻る
+    expect(order(8000).slice(2, 4)).toEqual(["card_a_gpay", "card_a_insert"]);
+  });
+
+  it("還元額に差があれば、確定かどうかや注意事項より還元額を優先する", () => {
+    // 店舗S：スマホタッチは注意の有無にかかわらず加算で1位
+    const r = recommend({ rules: base, store_id: "store_s", amount_yen: 9000, date: DATE });
+    expect(r.advices[0]?.candidate.method.id).toBe("card_a_gpay");
+    expect(r.advices[0]?.notices.some((n) => n.kind === "method_warning")).toBe(true);
+  });
+
+  it("金額未入力のときは確定している手段がないので、注意事項と記載順で並ぶ", () => {
+    expect(order(null).slice(0, 4)).toEqual(["card_c_quicpay", "card_a_gpay", "card_a_insert", "card_b_insert"]);
   });
 });
 

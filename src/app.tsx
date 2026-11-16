@@ -13,14 +13,19 @@ import {
   deleteSpend,
   idbRulesCache,
   listSpend,
+  loadLastBackupDate,
   loadRulesConfig,
   loadSettings,
+  replaceUserData,
+  saveLastBackupDate,
   saveRulesConfig,
   saveSettings,
   type RulesConfig,
   type SpendEntry,
 } from "./storage/db";
+import { isBackupDue, type BackupFile } from "./backup/backup";
 import { Annual } from "./ui/Annual";
+import { Backup } from "./ui/Backup";
 import { problemText } from "./ui/explain";
 import { Home, type PaidRecord } from "./ui/Home";
 import { SettingsScreen } from "./ui/SettingsScreen";
@@ -30,6 +35,7 @@ interface AppData {
   sync: SyncResult;
   settings: Settings;
   spend: SpendEntry[];
+  last_backup_date: string | null;
 }
 
 async function loadAll(): Promise<AppData> {
@@ -39,12 +45,13 @@ async function loadAll(): Promise<AppData> {
     source !== null && token !== null
       ? (etag: string | null) => fetchRules({ source, token, etag, fetch_fn: (url, init) => fetch(url, init) })
       : null;
-  const [sync, settings, spend] = await Promise.all([
+  const [sync, settings, spend, last_backup_date] = await Promise.all([
     syncRules({ cache: idbRulesCache, fetcher, now: () => new Date() }),
     loadSettings(),
     listSpend(),
+    loadLastBackupDate(),
   ]);
-  return { config, sync, settings, spend };
+  return { config, sync, settings, spend, last_backup_date };
 }
 
 /** ルールが無いときに設定画面へ渡す、空のルール */
@@ -59,11 +66,12 @@ const EMPTY_RULES: Rules = {
   redemptions: [],
 };
 
-type Tab = "home" | "annual" | "settings";
+type Tab = "home" | "annual" | "settings" | "backup";
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: "home", label: "ホーム" },
   { id: "annual", label: "年間目標" },
   { id: "settings", label: "設定" },
+  { id: "backup", label: "バックアップ" },
 ];
 
 export function App() {
@@ -164,6 +172,16 @@ export function App() {
     setData({ ...data, spend: await listSpend() });
   };
 
+  const markExported = async () => {
+    await saveLastBackupDate(today);
+    setData({ ...data, last_backup_date: today });
+  };
+  const restore = async (backup: BackupFile) => {
+    await replaceUserData(backup.settings, backup.spend);
+    await reload();
+  };
+  const backup_due = isBackupDue(data.last_backup_date, today, data.spend.length);
+
   const saveConfig = async (next: RulesConfig) => {
     await saveRulesConfig(next);
     await reload();
@@ -191,6 +209,24 @@ export function App() {
           annual_spent_yen={annual_spent_yen}
           onSetTotal={setAnnualTotal}
           onDeleteEntry={removeEntry}
+        />
+      )}
+      {tab === "home" && backup_due && (
+        <p class="banner banner-warn">
+          バックアップを取りましょう（前回：{data.last_backup_date ?? "まだありません"}）。
+          <button type="button" class="link" onClick={() => setTab("backup")}>
+            バックアップへ
+          </button>
+        </p>
+      )}
+      {tab === "backup" && (
+        <Backup
+          settings={data.settings}
+          spend={data.spend}
+          today={today}
+          last_backup_date={data.last_backup_date}
+          onExported={markExported}
+          onRestore={restore}
         />
       )}
       {tab === "settings" && (

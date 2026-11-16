@@ -41,6 +41,7 @@ const DB_VERSION = 1;
 const KEY_RULES_CONFIG = "rules_config";
 const KEY_RULES_STATE = "rules_state";
 const KEY_SETTINGS = "settings";
+const KEY_LAST_BACKUP_DATE = "last_backup_date";
 
 let db_promise: Promise<IDBPDatabase<PayDb>> | null = null;
 
@@ -94,6 +95,25 @@ export async function addSpend(entry: Omit<SpendEntry, "id">): Promise<void> {
 
 export async function deleteSpend(id: number): Promise<void> {
   await (await getDb()).delete("spend", id);
+}
+
+/** 前回バックアップを書き出した日（YYYY-MM-DD）。一度も無ければ null */
+export async function loadLastBackupDate(): Promise<string | null> {
+  return (await kvGet<string>(KEY_LAST_BACKUP_DATE)) ?? null;
+}
+
+export async function saveLastBackupDate(date: string): Promise<void> {
+  await kvSet(KEY_LAST_BACKUP_DATE, date);
+}
+
+/** 個人設定と利用記録を、まとめて置き換える（バックアップからの復元用。途中で失敗したら全体を取り消す） */
+export async function replaceUserData(settings: Settings, spend: ReadonlyArray<Omit<SpendEntry, "id">>): Promise<void> {
+  const tx = (await getDb()).transaction(["kv", "spend"], "readwrite");
+  const spend_store = tx.objectStore("spend");
+  await spend_store.clear();
+  for (const entry of spend) await spend_store.add(entry);
+  await tx.objectStore("kv").put(settings, KEY_SETTINGS);
+  await tx.done;
 }
 
 /** ルールのキャッシュ（現行版と直前版） */

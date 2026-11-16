@@ -4,11 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "gen": "node scripts/build-validator.mjs",
+    "dev": "npm run gen && vite",
+    "build": "npm run gen && tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run",
-    "lint": "tsc --noEmit && eslint ."
+    "test": "npm run gen && vitest run",
+    "lint": "npm run gen && tsc --noEmit && eslint ."
   },
   "dependencies": {
     "preact": "^11.2.0"
@@ -16,6 +17,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@preact/preset-vite": "^2.10.6",
+    "ajv": "^8.20.0",
     "eslint": "^10.15.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.2",

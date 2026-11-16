@@ -1,0 +1,320 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-01-10",
+  "points": [
+    { "id": "point_x", "name": "ポイントX", "value_milliyen": 1000 },
+    { "id": "point_y", "name": "ポイントY", "value_milliyen": 2000 },
+    { "id": "point_z", "name": "ポイントZ", "value_milliyen": 1000 }
+  ],
+  "cards": [
+    {
+      "id": "card_a",
+      "name": "カードA",
+      "rewards": [
+        {
+          "id": "card_a_base",
+          "label": "基本",
+          "point_id": "point_x",
+          "unit_yen": 100,
+          "points_per_unit": 1,
+          "scope": "monthly",
+          "rounding": "floor",
+          "stacking": "base",
+          "applies": {},
+          "meta": {
+            "source_url": "https://example.com/card-a/base",
+            "last_verified": "2026-01-10",
+            "valid_from": null,
+            "valid_to": null,
+            "cap": null
+          }
+        },
+        {
+          "id": "card_a_touch_bonus",
+          "label": "スマホタッチ加算",
+          "point_id": "point_x",
+          "unit_yen": 100,
+          "points_per_unit": 4,
+          "scope": "per_txn",
+          "rounding": "floor",
+          "stacking": "add",
+          "applies": {
+            "pay_types": ["google_pay_touch"],
+            "store_group_ids": ["group_touch_bonus"],
+            "exclude_store_ids": ["store_u"]
+          },
+          "meta": {
+            "source_url": "https://example.com/card-a/touch-bonus",
+            "last_verified": "2026-01-10",
+            "valid_from": "2025-04-01",
+            "valid_to": null,
+            "cap": null
+          }
+        }
+      ],
+      "annual_target": {
+        "target_yen": 500000,
+        "period_start_month": 4,
+        "period_start_day": 1,
+        "meta": {
+          "source_url": "https://example.com/card-a/annual",
+          "last_verified": "2026-01-10",
+          "valid_from": null,
+          "valid_to": null,
+          "cap": null
+        }
+      }
+    },
+    {
+      "id": "card_b",
+      "name": "カードB",
+      "rewards": [
+        {
+          "id": "card_b_base",
+          "label": "基本",
+          "point_id": "point_y",
+          "unit_yen": 200,
+          "points_per_unit": 1,
+          "scope": "per_txn",
+          "rounding": "round",
+          "stacking": "base",
+          "applies": {},
+          "meta": {
+            "source_url": "https://example.com/card-b/base",
+            "last_verified": "2026-01-10",
+            "valid_from": null,
+            "valid_to": null,
+            "cap": null
+          }
+        },
+        {
+          "id": "card_b_partner",
+          "label": "提携店 3 倍",
+          "point_id": "point_y",
+          "unit_yen": 200,
+          "points_per_unit": 1,
+          "scope": "per_txn",
+          "rounding": "round",
+          "multiplier": 3,
+          "stacking": "replace_base",
+          "applies": {
+            "pay_types": ["card_insert"],
+            "store_group_ids": ["group_partner"]
+          },
+          "meta": {
+            "source_url": "https://example.com/card-b/partner",
+            "last_verified": "2026-01-10",
+            "valid_from": null,
+            "valid_to": null,
+            "cap": null
+          }
+        },
+        {
+          "id": "card_b_charge",
+          "label": "交通系チャージ",
+          "point_id": "point_z",
+          "unit_yen": 1000,
+          "points_per_unit": 8,
+          "scope": "per_txn",
+          "rounding": "floor",
+          "stacking": "base",
+          "applies": { "pay_types": ["charge_transit_ic"] },
+          "meta": {
+            "source_url": "https://example.com/card-b/charge",
+            "last_verified": "2025-09-01",
+            "valid_from": null,
+            "valid_to": null,
+            "cap": null,
+            "confidence": "unverified"
+          }
+        }
+      ]
+    },
+    {
+      "id": "card_c",
+      "name": "カードC",
+      "rewards": [
+        {
+          "id": "card_c_base",
+          "label": "基本",
+          "point_id": "point_z",
+          "unit_yen": 1000,
+          "points_per_unit": 15,
+          "scope": "monthly",
+          "rounding": "floor",
+          "stacking": "base",
+          "applies": {},
+          "meta": {
+            "source_url": "https://example.com/card-c/base",
+            "last_verified": "2026-01-10",
+            "valid_from": null,
+            "valid_to": null,
+            "cap": null
+          }
+        },
+        {
+          "id": "card_c_campaign",
+          "label": "期間限定の上乗せ（終了済み）",
+          "point_id": "point_z",
+          "unit_yen": 1000,
+          "points_per_unit": 50,
+          "scope": "monthly",
+          "rounding": "floor",
+          "stacking": "add",
+          "applies": {},
+          "meta": {
+            "source_url": "https://example.com/card-c/campaign",
+            "last_verified": "2025-06-01",
+            "valid_from": "2025-06-01",
+            "valid_to": "2025-06-30",
+            "cap": { "amount": 500, "unit": "point", "period": "month" }
+          }
+        }
+      ]
+    }
+  ],
+  "methods": [
+    {
+      "id": "card_a_gpay",
+      "label": "カードA／スマホのタッチ決済",
+      "pay_type": "google_pay_touch",
+      "card_id": "card_a",
+      "earns_points": true,
+      "counts_toward_annual": true,
+      "warnings": [
+        { "amount_gt_yen": 8000, "text": "8,000 円を超えるとタッチ決済にならず、加算の対象外になる可能性" }
+      ]
+    },
+    {
+      "id": "card_a_insert",
+      "label": "カードA／カードを差し込む",
+      "pay_type": "card_insert",
+      "card_id": "card_a",
+      "earns_points": true,
+      "counts_toward_annual": true
+    },
+    {
+      "id": "card_b_insert",
+      "label": "カードB／カードを差し込む",
+      "pay_type": "card_insert",
+      "card_id": "card_b",
+      "earns_points": true,
+      "counts_toward_annual": false
+    },
+    {
+      "id": "card_c_quicpay",
+      "label": "カードC／スマホの電子マネー",
+      "pay_type": "id_quicpay",
+      "card_id": "card_c",
+      "earns_points": true,
+      "counts_toward_annual": false
+    },
+    {
+      "id": "transit_from_card_b",
+      "label": "交通系IC（カードBでチャージ）",
+      "pay_type": "transit_ic",
+      "card_id": null,
+      "funding": { "card_id": "card_b", "pay_type": "charge_transit_ic", "note": "公式アプリからチャージ" },
+      "earns_points": true,
+      "counts_toward_annual": false
+    },
+    {
+      "id": "qr_from_bank",
+      "label": "QR決済（銀行口座でチャージ）",
+      "pay_type": "qr_pay",
+      "card_id": null,
+      "funding": { "card_id": null, "pay_type": "charge_qr_pay" },
+      "rewards": [
+        {
+          "id": "qr_base",
+          "label": "利用時の還元",
+          "point_id": "point_z",
+          "unit_yen": 200,
+          "points_per_unit": 1,
+          "scope": "per_txn",
+          "rounding": "floor",
+          "stacking": "base",
+          "applies": {},
+          "meta": {
+            "source_url": "https://example.com/qr/base",
+            "last_verified": "2026-01-10",
+            "valid_from": null,
+            "valid_to": null,
+            "cap": null
+          }
+        }
+      ],
+      "earns_points": true,
+      "counts_toward_annual": false
+    }
+  ],
+  "stores": [
+    {
+      "id": "store_s",
+      "name": "店舗S",
+      "aliases": ["エス", "S店"],
+      "loyalty": [{ "label": "ポイントZのカード", "note": "会計の前に提示" }]
+    },
+    {
+      "id": "store_t",
+      "name": "店舗T",
+      "aliases": [],
+      "unusable_pay_types": ["qr_pay"]
+    },
+    {
+      "id": "store_u",
+      "name": "店舗U（商業施設内）",
+      "aliases": [],
+      "notes": ["加算の対象外"]
+    },
+    {
+      "id": "store_v",
+      "name": "店舗V",
+      "aliases": ["ブイ"],
+      "unusable_method_ids": ["card_c_quicpay"]
+    }
+  ],
+  "store_groups": [
+    {
+      "id": "group_touch_bonus",
+      "name": "スマホタッチ加算の対象店",
+      "store_ids": ["store_s", "store_u"],
+      "meta": {
+        "source_url": "https://example.com/card-a/touch-bonus/stores",
+        "last_verified": "2026-01-10",
+        "valid_from": null,
+        "valid_to": null,
+        "cap": null
+      }
+    },
+    {
+      "id": "group_partner",
+      "name": "カードBの提携店",
+      "store_ids": ["store_t", "store_v"],
+      "meta": {
+        "source_url": "https://example.com/card-b/partner/stores",
+        "last_verified": "2026-01-10",
+        "valid_from": null,
+        "valid_to": null,
+        "cap": null
+      }
+    }
+  ],
+  "redemptions": [
+    {
+      "id": "redeem_x_at_v",
+      "point_id": "point_x",
+      "store_ids": ["store_v"],
+      "days_of_month": [15],
+      "value_milliyen": 1300,
+      "text": "本日はポイントX払いが 1.3 倍。1会計 3,000 ポイントまで",
+      "meta": {
+        "source_url": "https://example.com/store-v/point-day",
+        "last_verified": "2026-01-10",
+        "valid_from": null,
+        "valid_to": null,
+        "cap": { "amount": 3000, "unit": "point", "period": "txn" }
+      }
+    }
+  ]
+}

@@ -28,6 +28,7 @@
 ## コマンド
 技術スタック：TypeScript + Vite + Preact + Vitest（Node.js 26 / npm 11 で確認）
 - 依存の導入：`npm install`
+- 検証関数の生成：`npm run gen`（`schema/rules.schema.json` → `src/generated/`。test / lint / build / dev の前に自動で走る）
 - 開発サーバ：`npm run dev`
 - テスト：`npm test`（Vitest。`tests/**/*.test.ts`）
 - 型チェック・lint：`npm run lint`（`tsc --noEmit` と ESLint）

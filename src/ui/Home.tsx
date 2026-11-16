@@ -148,6 +148,13 @@ export function Home(props: Props) {
             <button type="button" class="link" onClick={() => select(undefined)}>
               変更
             </button>
+            {store?.notes && store.notes.length > 0 && (
+              <ul class="store-notes">
+                {store.notes.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </section>

@@ -44,6 +44,7 @@ export function SettingsScreen(props: Props) {
           <StoreSettings {...props} />
         </>
       )}
+      <p class="hint">アプリの版：{__BUILD_ID__}</p>
     </div>
   );
 }

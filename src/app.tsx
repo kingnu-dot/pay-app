@@ -66,6 +66,9 @@ const EMPTY_RULES: Rules = {
   redemptions: [],
 };
 
+/** 新しい版の Service Worker に切り替わったことを知らせるイベント名（main.tsx から送る） */
+export const UPDATE_READY_EVENT = "app-update-ready";
+
 type Tab = "home" | "annual" | "settings" | "backup";
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: "home", label: "ホーム" },
@@ -79,6 +82,13 @@ export function App() {
   const [data, setData] = useState<AppData | null>(null);
   const [load_error, setLoadError] = useState<string | null>(null);
   const [today, setToday] = useState(() => toJstDate(new Date()));
+  const [update_ready, setUpdateReady] = useState(false);
+
+  useEffect(() => {
+    const onUpdate = () => setUpdateReady(true);
+    window.addEventListener(UPDATE_READY_EVENT, onUpdate);
+    return () => window.removeEventListener(UPDATE_READY_EVENT, onUpdate);
+  }, []);
 
   const reload = useCallback(async () => {
     try {
@@ -194,6 +204,14 @@ export function App() {
       <header class="app-header">
         <h1>支払い手段おすすめ</h1>
       </header>
+      {update_ready && (
+        <p class="banner banner-info">
+          アプリの新しい版があります。
+          <button type="button" class="link" onClick={() => location.reload()}>
+            再読み込みして切り替える
+          </button>
+        </p>
+      )}
       {problem && <p class="banner banner-warn">{problem}</p>}
       {data.sync.updated && <p class="banner banner-ok">ルールを最新版に更新しました。</p>}
       {merged && merged.errors.length > 0 && (

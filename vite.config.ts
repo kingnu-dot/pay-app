@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -36,6 +37,22 @@ function cspPlugin(): Plugin {
       };
     },
   };
+}
+
+/**
+ * 画面に表示する版の識別子（コミットとビルド日時）。配信中のアプリが最新かを確かめるために使う。
+ * GitHub Actions では GITHUB_SHA、手元では git から取得する
+ */
+function buildId(): string {
+  let sha = process.env.GITHUB_SHA?.slice(0, 7);
+  if (!sha) {
+    try {
+      sha = execSync("git rev-parse --short=7 HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    } catch {
+      sha = "unknown";
+    }
+  }
+  return `${sha}（${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC ビルド）`;
 }
 
 /** フォルダ内のファイルを、そのフォルダからの相対パス（/ 区切り）で列挙する */
@@ -114,6 +131,7 @@ self.addEventListener("fetch", (event) => {
 export default defineConfig({
   base: "/pay-app/",
   plugins: [preact(), cspPlugin(), serviceWorkerPlugin()],
+  define: { __BUILD_ID__: JSON.stringify(buildId()) },
   build: {
     target: "es2022",
     sourcemap: false,

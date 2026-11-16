@@ -20,6 +20,12 @@ export function divFloor(numerator: number, denominator: number): number {
   return (numerator - (numerator % denominator)) / denominator;
 }
 
+/** 0 以上の整数どうしの切り上げ除算 */
+export function divCeil(numerator: number, denominator: number): number {
+  const floored = divFloor(numerator, denominator);
+  return numerator % denominator === 0 ? floored : floored + 1;
+}
+
 /** 0 以上の整数どうしの四捨五入除算（小数第1位を四捨五入。0.5 は切り上げ） */
 export function divRound(numerator: number, denominator: number): number {
   assertInt(numerator, "numerator");

@@ -1,6 +1,7 @@
 // 画面の最上位：端末内のデータを読み込み、ルールを同期して各画面に渡す
 
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
+import { couponsForStore, enabledServices, expiringSoon, type Coupon } from "./coupons/coupons";
 import { annualPeriod } from "./engine/annual";
 import { toJstDate } from "./engine/dates";
 import { adjustmentFor, sumAnnualSpent } from "./engine/spend";
@@ -13,10 +14,12 @@ import {
   deleteSpend,
   idbRulesCache,
   listSpend,
+  loadCoupons,
   loadLastBackupDate,
   loadRulesConfig,
   loadSettings,
   replaceUserData,
+  saveCoupons,
   saveLastBackupDate,
   saveRulesConfig,
   saveSettings,
@@ -26,6 +29,7 @@ import {
 import { isBackupDue, type BackupFile } from "./backup/backup";
 import { Annual } from "./ui/Annual";
 import { Backup } from "./ui/Backup";
+import { CouponsScreen } from "./ui/CouponsScreen";
 import { problemText } from "./ui/explain";
 import { Home, type PaidRecord } from "./ui/Home";
 import { SettingsScreen } from "./ui/SettingsScreen";
@@ -35,6 +39,7 @@ interface AppData {
   sync: SyncResult;
   settings: Settings;
   spend: SpendEntry[];
+  coupons: Coupon[];
   last_backup_date: string | null;
 }
 
@@ -45,13 +50,14 @@ async function loadAll(): Promise<AppData> {
     source !== null && token !== null
       ? (etag: string | null) => fetchRules({ source, token, etag, fetch_fn: (url, init) => fetch(url, init) })
       : null;
-  const [sync, settings, spend, last_backup_date] = await Promise.all([
+  const [sync, settings, spend, last_backup_date, coupons] = await Promise.all([
     syncRules({ cache: idbRulesCache, fetcher, now: () => new Date() }),
     loadSettings(),
     listSpend(),
     loadLastBackupDate(),
+    loadCoupons(),
   ]);
-  return { config, sync, settings, spend, last_backup_date };
+  return { config, sync, settings, spend, coupons, last_backup_date };
 }
 
 /** ルールが無いときに設定画面へ渡す、空のルール */
@@ -69,12 +75,12 @@ const EMPTY_RULES: Rules = {
 /** 新しい版の Service Worker に切り替わったことを知らせるイベント名（main.tsx から送る） */
 export const UPDATE_READY_EVENT = "app-update-ready";
 
-type Tab = "home" | "annual" | "settings" | "backup";
+type Tab = "home" | "coupons" | "annual" | "settings";
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: "home", label: "ホーム" },
+  { id: "coupons", label: "クーポン" },
   { id: "annual", label: "年間目標" },
   { id: "settings", label: "設定" },
-  { id: "backup", label: "バックアップ" },
 ];
 
 export function App() {
@@ -111,6 +117,11 @@ export function App() {
 
   const merged = useMemo(
     () => (data?.sync.rules ? mergeRules(data.sync.rules, data.settings) : null),
+    [data?.sync.rules, data?.settings],
+  );
+
+  const services = useMemo(
+    () => (data ? enabledServices(data.sync.rules?.services ?? [], data.settings) : []),
     [data?.sync.rules, data?.settings],
   );
 
@@ -187,10 +198,17 @@ export function App() {
     setData({ ...data, last_backup_date: today });
   };
   const restore = async (backup: BackupFile) => {
-    await replaceUserData(backup.settings, backup.spend);
+    await replaceUserData(backup.settings, backup.spend, backup.coupons);
     await reload();
   };
   const backup_due = isBackupDue(data.last_backup_date, today, data.spend.length);
+
+  const updateCoupons = async (next: Coupon[]) => {
+    await saveCoupons(next);
+    setData({ ...data, coupons: next });
+  };
+  const markCouponUsed = (coupon_id: string) =>
+    void updateCoupons(data.coupons.map((c) => (c.id === coupon_id ? { ...c, used: true } : c)));
 
   const saveConfig = async (next: RulesConfig) => {
     await saveRulesConfig(next);
@@ -232,19 +250,18 @@ export function App() {
       {tab === "home" && backup_due && (
         <p class="banner banner-warn">
           バックアップを取りましょう（前回：{data.last_backup_date ?? "まだありません"}）。
-          <button type="button" class="link" onClick={() => setTab("backup")}>
-            バックアップへ
+          <button type="button" class="link" onClick={() => setTab("settings")}>
+            設定のバックアップへ
           </button>
         </p>
       )}
-      {tab === "backup" && (
-        <Backup
-          settings={data.settings}
-          spend={data.spend}
+      {tab === "coupons" && (
+        <CouponsScreen
+          coupons={data.coupons}
+          stores={merged?.rules.stores ?? []}
+          services={services}
           today={today}
-          last_backup_date={data.last_backup_date}
-          onExported={markExported}
-          onRestore={restore}
+          onSave={updateCoupons}
         />
       )}
       {tab === "settings" && (
@@ -259,12 +276,28 @@ export function App() {
           onRefetch={reload}
         />
       )}
+      {tab === "settings" && (
+        <Backup
+          settings={data.settings}
+          spend={data.spend}
+          coupons={data.coupons}
+          today={today}
+          last_backup_date={data.last_backup_date}
+          onExported={markExported}
+          onRestore={restore}
+        />
+      )}
       {tab !== "home" ? null : merged ? (
         <Home
           rules={merged.rules}
           settings={data.settings}
           today={today}
           annual_spent_yen={annual_spent_yen}
+          expiring_coupons={expiringSoon(data.coupons, today)}
+          couponsFor={(store_id) => couponsForStore(data.coupons, store_id, today)}
+          services={services}
+          onCouponUsed={markCouponUsed}
+          onOpenCoupons={() => setTab("coupons")}
           onToggleFavorite={toggleFavorite}
           onPaid={recordPaid}
         />

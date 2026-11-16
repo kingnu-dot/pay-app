@@ -27,7 +27,7 @@ describe("buildBackup", () => {
   });
 
   it("トークンや取得先を入れる項目がない", () => {
-    expect(Object.keys(backup).sort()).toEqual(["exported_at", "format", "settings", "spend", "version"]);
+    expect(Object.keys(backup).sort()).toEqual(["coupons", "exported_at", "format", "settings", "spend", "version"]);
   });
 
   it("ファイル名に日付を入れる", () => {
@@ -48,6 +48,7 @@ describe("parseBackup", () => {
       first_date: "2025-11-20",
       last_date: "2026-01-05",
       total_yen: 1800,
+      coupon_count: 0,
       favorite_count: 1,
       custom_store_count: 0,
       disabled_method_count: 1,

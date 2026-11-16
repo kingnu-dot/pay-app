@@ -1,12 +1,14 @@
 // ホーム画面：店舗と金額を選ぶと、1画面でおすすめの支払い手段が分かる
 
 import { useMemo, useState } from "preact/hooks";
+import type { ActiveService, Coupon } from "../coupons/coupons";
 import { recommend, ruleAlerts, type Advice, type Recommendation } from "../engine/advise";
 import { searchStores } from "../engine/search";
 import type { Rules, Store } from "../rules/types";
 import type { Settings } from "../settings/settings";
 import { breakdownLine, noticeText, reasonText, redemptionDetail } from "./explain";
 import { formatDate, formatMilliyen, formatRate, formatYen, parseAmount } from "./format";
+import { ExpiringCoupons, StorePerks } from "./Perks";
 
 /** 「これで払った」で記録する内容 */
 export interface PaidRecord {
@@ -26,6 +28,14 @@ interface Props {
   today: string;
   /** カードごとの今期の年間利用額 [円] */
   annual_spent_yen: Record<string, number>;
+  /** 期限が近いクーポン（画面の上部に出す） */
+  expiring_coupons: Coupon[];
+  /** その店で使えるクーポンを返す */
+  couponsFor: (store_id: string | null) => Coupon[];
+  /** 利用中のサービス */
+  services: ActiveService[];
+  onCouponUsed: (coupon_id: string) => void;
+  onOpenCoupons: () => void;
   onToggleFavorite: (store_id: string) => void;
   onPaid: (record: PaidRecord) => Promise<void>;
 }
@@ -36,7 +46,8 @@ const MAX_STORE_CHOICES = 8;
 /** 選択中の店舗。未選択は undefined、未登録の店（一般加盟店）は null */
 type Selection = string | null | undefined;
 
-export function Home({ rules, settings, today, annual_spent_yen, onToggleFavorite, onPaid }: Props) {
+export function Home(props: Props) {
+  const { rules, settings, today, annual_spent_yen, onToggleFavorite, onPaid } = props;
   const [query, setQuery] = useState("");
   const [selection, setSelection] = useState<Selection>(undefined);
   const [amount_text, setAmountText] = useState("");
@@ -86,6 +97,7 @@ export function Home({ rules, settings, today, annual_spent_yen, onToggleFavorit
 
   return (
     <div class="screen">
+      <ExpiringCoupons coupons={props.expiring_coupons} today={today} onOpen={props.onOpenCoupons} />
       {alerts.length > 0 && (
         <details class="banner banner-warn">
           <summary>
@@ -167,6 +179,16 @@ export function Home({ rules, settings, today, annual_spent_yen, onToggleFavorit
       {selection === undefined && <p class="hint">店舗を選ぶと、おすすめの支払い手段を表示します。</p>}
       {result && (
         <Result result={result} amount_yen={amount.ok ? amount.amount_yen : null} rules={rules} onPay={pay} />
+      )}
+      {selection !== undefined && (
+        <StorePerks
+          store_id={selection}
+          store_name={store?.name ?? null}
+          coupons={props.couponsFor(selection)}
+          services={props.services}
+          today={today}
+          onUsed={props.onCouponUsed}
+        />
       )}
     </div>
   );

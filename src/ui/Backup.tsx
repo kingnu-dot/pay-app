@@ -2,6 +2,7 @@
 
 import { useState } from "preact/hooks";
 import { backupFileName, buildBackup, parseBackup, type BackupFile, type BackupSummary } from "../backup/backup";
+import type { Coupon } from "../coupons/coupons";
 import type { Settings } from "../settings/settings";
 import type { SpendEntry } from "../storage/db";
 import { formatDate, formatYen } from "./format";
@@ -9,6 +10,7 @@ import { formatDate, formatYen } from "./format";
 interface Props {
   settings: Settings;
   spend: SpendEntry[];
+  coupons: Coupon[];
   today: string;
   /** 前回の書き出し日（YYYY-MM-DD）。一度も無ければ null */
   last_backup_date: string | null;
@@ -29,12 +31,12 @@ function shareableFile(text: string, date: string): File | null {
   return candidates.find((file) => navigator.canShare({ files: [file] })) ?? null;
 }
 
-export function Backup({ settings, spend, today, last_backup_date, onExported, onRestore }: Props) {
+export function Backup({ settings, spend, coupons, today, last_backup_date, onExported, onRestore }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<{ backup: BackupFile; summary: BackupSummary } | null>(null);
 
-  const text = () => JSON.stringify(buildBackup({ settings, spend, now: new Date() }), null, 2);
+  const text = () => JSON.stringify(buildBackup({ settings, spend, coupons, now: new Date() }), null, 2);
   const can_share = shareableFile("{}", today) !== null;
 
   const share = async () => {
@@ -90,9 +92,10 @@ export function Backup({ settings, spend, today, last_backup_date, onExported, o
   return (
     <div class="screen">
       <section class="card">
-        <h2>書き出し</h2>
+        <h2>バックアップ：書き出し</h2>
         <p class="hint">
-          前回の書き出し：{last_backup_date ? formatDate(last_backup_date) : "まだありません"}／利用記録 {spend.length} 件
+          前回の書き出し：{last_backup_date ? formatDate(last_backup_date) : "まだありません"}／利用記録 {spend.length} 件／クーポン{" "}
+          {coupons.length} 件
         </p>
         {can_share && (
           <button type="button" class="primary" onClick={() => void share()}>
@@ -103,13 +106,13 @@ export function Backup({ settings, spend, today, last_backup_date, onExported, o
           ファイルに保存
         </button>
         <p class="hint">
-          個人設定と利用記録を1つのファイルにまとめます。アクセストークンとルールの取得先は含めません。
+          個人設定・利用記録・クーポンを1つのファイルにまとめます。アクセストークンとルールの取得先は含めません。
         </p>
       </section>
 
       <section class="card">
         <h2>
-          <label for="restore-file">復元（ファイルから読み込む）</label>
+          <label for="restore-file">バックアップ：復元（ファイルから読み込む）</label>
         </h2>
         <input
           id="restore-file"
@@ -132,13 +135,14 @@ export function Backup({ settings, spend, today, last_backup_date, onExported, o
                   ? `（${formatDate(pending.summary.first_date)} 〜 ${formatDate(pending.summary.last_date)}、合計 ${formatYen(pending.summary.total_yen)}）`
                   : ""}
               </li>
+              <li>クーポン：{pending.summary.coupon_count} 件</li>
               <li>
                 お気に入り {pending.summary.favorite_count} 件、追加した店舗 {pending.summary.custom_store_count} 件、無効にした手段{" "}
                 {pending.summary.disabled_method_count} 件
               </li>
             </ul>
             <p>
-              今この端末にある個人設定と利用記録（{spend.length} 件）は、この内容に置き換わります。元には戻せません。
+              今この端末にある個人設定・利用記録（{spend.length} 件）・クーポン（{coupons.length} 件）は、この内容に置き換わります。元には戻せません。
             </p>
             <button type="button" class="primary" onClick={() => void restore()}>
               この内容で置き換える

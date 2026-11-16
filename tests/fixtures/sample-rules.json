@@ -330,5 +330,31 @@
         "cap": { "amount": 3000, "unit": "point", "period": "txn" }
       }
     }
+  ],
+  "services": [
+    {
+      "id": "app_s",
+      "name": "店舗Sアプリ",
+      "store_ids": ["store_s", "store_u"],
+      "app": { "android_package": "com.example.stores", "open_url": "https://app.example.com/coupon?from=web" }
+    },
+    {
+      "id": "app_t",
+      "name": "店舗Tアプリ",
+      "store_ids": ["store_t"],
+      "app": { "android_package": "com.example.storet" }
+    },
+    {
+      "id": "club_m",
+      "name": "会員優待M",
+      "app": { "android_package": "com.example.clubm" },
+      "search_url_template": "https://club.example.com/search?q={query}",
+      "note": "会員証の提示で割引になる店がある"
+    },
+    {
+      "id": "search_n",
+      "name": "優待検索N",
+      "search_url_template": "https://search.example.com/{query}/coupons"
+    }
   ]
 }

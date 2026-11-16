@@ -131,6 +131,13 @@ describe("normalizeSettings：保存データの読み取り", () => {
       extra_aliases: { store_s: ["えす"], store_t: [] },
       store_exceptions: [{ store_id: "store_s", rule_id: "r1" }, { store_id: "store_s" }],
       unusable_methods: { store_s: ["m1"] },
+      enabled_service_ids: ["app_s", "app_s", 5],
+      custom_services: [
+        { id: "user_service_1", name: " 優待X ", store_ids: ["store_s"], url: "https://example.com/x" },
+        { id: "user_service_2", name: "リンクが危険", store_ids: [], url: "javascript:alert(1)" },
+        { id: "user_service_3", name: "http は不可", store_ids: [], url: "http://example.com/" },
+        { id: "service_bad", name: "不正な id", store_ids: [], url: null },
+      ],
     });
     expect(s).toEqual({
       version: 1,
@@ -143,6 +150,12 @@ describe("normalizeSettings：保存データの読み取り", () => {
       extra_aliases: { store_s: ["えす"] },
       store_exceptions: [{ store_id: "store_s", rule_id: "r1" }],
       unusable_methods: { store_s: ["m1"] },
+      enabled_service_ids: ["app_s"],
+      custom_services: [
+        { id: "user_service_1", name: "優待X", store_ids: ["store_s"], url: "https://example.com/x" },
+        { id: "user_service_2", name: "リンクが危険", store_ids: [], url: null },
+        { id: "user_service_3", name: "http は不可", store_ids: [], url: null },
+      ],
     });
   });
 

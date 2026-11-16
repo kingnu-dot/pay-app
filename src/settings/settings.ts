@@ -37,11 +37,37 @@ export interface Settings {
   store_exceptions: StoreException[];
   /** その店で使えない支払い手段（店舗の id → 手段の id） */
   unusable_methods: Record<string, string[]>;
+  /** 使っているサービス（公式の一覧から選んだもの） */
+  enabled_service_ids: string[];
+  /** 自分で追加したサービス */
+  custom_services: CustomService[];
+}
+
+/** 自分で追加したサービス（id は user_service_ で始める） */
+export interface CustomService {
+  id: string;
+  name: string;
+  /** 対象の店舗。空ならすべての店舗 */
+  store_ids: string[];
+  /** 開くページの URL（https）。なければ null */
+  url: string | null;
 }
 
 export const MAX_POINT_VALUE_MILLIYEN = 1_000_000;
 export const MAX_THRESHOLD_YEN = 100_000;
 const CUSTOM_STORE_ID = /^user_[a-z0-9_]{1,40}$/;
+const CUSTOM_SERVICE_ID = /^user_service_[0-9]{1,6}$/;
+const MAX_URL_LENGTH = 500;
+
+/** 開いてよい URL か（https のみ。javascript: などを保存させない） */
+function isHttpsUrl(text: string): boolean {
+  if (text.length > MAX_URL_LENGTH || /\s/.test(text)) return false;
+  try {
+    return new URL(text).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 const MAX_TEXT_LENGTH = 100;
 const MAX_LIST_LENGTH = 1000;
 
@@ -57,6 +83,8 @@ export function defaultSettings(): Settings {
     extra_aliases: {},
     store_exceptions: [],
     unusable_methods: {},
+    enabled_service_ids: [],
+    custom_services: [],
   };
 }
 
@@ -123,6 +151,20 @@ export function normalizeSettings(value: unknown): Settings {
     }
   }
   s.unusable_methods = textListRecord(value.unusable_methods);
+  s.enabled_service_ids = textList(value.enabled_service_ids);
+  if (Array.isArray(value.custom_services)) {
+    const seen = new Set<string>();
+    for (const v of value.custom_services.slice(0, MAX_LIST_LENGTH)) {
+      if (!isRecord(v) || typeof v.id !== "string" || !CUSTOM_SERVICE_ID.test(v.id) || seen.has(v.id) || !isText(v.name)) continue;
+      seen.add(v.id);
+      s.custom_services.push({
+        id: v.id,
+        name: v.name.trim(),
+        store_ids: textList(v.store_ids),
+        url: typeof v.url === "string" && isHttpsUrl(v.url) ? v.url : null,
+      });
+    }
+  }
   return s;
 }
 
@@ -131,6 +173,15 @@ export function newCustomStoreId(existing_ids: readonly string[]): string {
   const used = new Set(existing_ids);
   for (let n = 1; ; n += 1) {
     const id = `user_store_${n}`;
+    if (!used.has(id)) return id;
+  }
+}
+
+/** 追加するサービスの id を、既存と重ならないように作る */
+export function newCustomServiceId(existing_ids: readonly string[]): string {
+  const used = new Set(existing_ids);
+  for (let n = 1; ; n += 1) {
+    const id = `user_service_${n}`;
     if (!used.has(id)) return id;
   }
 }

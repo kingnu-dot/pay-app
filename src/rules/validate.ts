@@ -114,6 +114,15 @@ export function checkIntegrity(rules: Rules): string[] {
     checkMeta(where, group.meta);
   }
 
+  collectIds("services", (rules.services ?? []).map((s) => s.id));
+  for (const service of rules.services ?? []) {
+    const where = `services/${service.id}`;
+    for (const id of service.store_ids ?? []) requireRef(where, "stores", storeIds, id);
+    if (!service.app && service.search_url_template === undefined) {
+      errors.push(`${where}: app と search_url_template の少なくとも一方が必要です`);
+    }
+  }
+
   for (const redemption of rules.redemptions) {
     const where = `redemptions/${redemption.id}`;
     requireRef(where, "points", pointIds, redemption.point_id);

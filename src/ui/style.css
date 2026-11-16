@@ -437,3 +437,61 @@ summary {
 .danger {
   color: #b91c1c;
 }
+
+.perks,
+.coupons {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.perks li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.perks li.perk-service {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.perk-sub {
+  font-size: 0.9rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.perk-links,
+.coupon-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 12px;
+}
+
+.perk-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent);
+}
+
+.coupon {
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.field-group {
+  margin: 8px 0;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.field-group summary {
+  font-weight: 400;
+}

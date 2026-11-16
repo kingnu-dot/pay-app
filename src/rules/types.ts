@@ -154,6 +154,23 @@ export interface Redemption {
   meta: Meta;
 }
 
+/** クーポン・優待を確認できるサービス（店舗の公式アプリ、会員優待、検索サイトなど） */
+export interface Service {
+  id: string;
+  name: string;
+  /** 対象の店舗。省略時はすべての店舗（未登録の店を含む） */
+  store_ids?: string[];
+  /** アプリを開くための情報 */
+  app?: {
+    android_package: string;
+    /** アプリで開ける https の URL（アプリが対応している場合） */
+    open_url?: string;
+  };
+  /** 店名で検索するページの URL。{query} が店名に置き換わる */
+  search_url_template?: string;
+  note?: string;
+}
+
 export interface Rules {
   schema_version: 1;
   updated_at: string;
@@ -163,4 +180,6 @@ export interface Rules {
   stores: Store[];
   store_groups: StoreGroup[];
   redemptions: Redemption[];
+  /** 省略時はサービスなし */
+  services?: Service[];
 }

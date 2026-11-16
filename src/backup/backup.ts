@@ -1,6 +1,7 @@
 // バックアップ：個人設定と利用記録を1つの JSON にまとめる／読み戻す
 // アクセストークンとルールの取得先は含めない（メールで送るファイルのため。復元後に設定画面で入力し直す）
 
+import { parseCoupon, type Coupon } from "../coupons/coupons";
 import { daysBetween, toEpochDay } from "../engine/dates";
 import { MAX_AMOUNT_YEN } from "../engine/recommend";
 import { normalizeSettings, type Settings } from "../settings/settings";
@@ -16,6 +17,8 @@ export interface BackupFile {
   exported_at: string;
   settings: Settings;
   spend: BackupSpend[];
+  /** 登録したクーポン・優待（古いバックアップには無いので、読み込み時は空として扱う） */
+  coupons: Coupon[];
 }
 
 /** 読み込み前に画面へ出す要約 */
@@ -27,6 +30,7 @@ export interface BackupSummary {
   last_date: string | null;
   /** 記録の金額の合計 [円] */
   total_yen: number;
+  coupon_count: number;
   favorite_count: number;
   custom_store_count: number;
   disabled_method_count: number;
@@ -41,13 +45,19 @@ export const BACKUP_REMINDER_DAYS = 30;
 const MAX_SPEND_ENTRIES = 100_000;
 const MAX_NOTE_LENGTH = 300;
 
-export function buildBackup(args: { settings: Settings; spend: readonly SpendEntry[]; now: Date }): BackupFile {
+export function buildBackup(args: {
+  settings: Settings;
+  spend: readonly SpendEntry[];
+  coupons?: readonly Coupon[];
+  now: Date;
+}): BackupFile {
   return {
     format: "pay-app-backup",
     version: 1,
     exported_at: args.now.toISOString(),
     settings: args.settings,
     spend: args.spend.map(({ id: _id, ...rest }) => rest),
+    coupons: [...(args.coupons ?? [])],
   };
 }
 
@@ -107,17 +117,27 @@ export function parseBackup(text: string): ParsedBackup {
     if (entry === null) return { ok: false, message: `利用記録の ${index + 1} 件目が読めません。` };
     spend.push(entry);
   }
+  const coupons: Coupon[] = [];
+  if (data.coupons !== undefined) {
+    if (!Array.isArray(data.coupons)) return { ok: false, message: "クーポンが読めません。" };
+    for (const [index, raw] of data.coupons.entries()) {
+      const coupon = parseCoupon(raw);
+      if (coupon === null) return { ok: false, message: `クーポンの ${index + 1} 件目が読めません。` };
+      coupons.push(coupon);
+    }
+  }
   const settings = normalizeSettings(data.settings);
   const dates = spend.map((e) => e.date).sort();
   return {
     ok: true,
-    backup: { format: "pay-app-backup", version: 1, exported_at: data.exported_at, settings, spend },
+    backup: { format: "pay-app-backup", version: 1, exported_at: data.exported_at, settings, spend, coupons },
     summary: {
       exported_at: data.exported_at,
       spend_count: spend.length,
       first_date: dates[0] ?? null,
       last_date: dates[dates.length - 1] ?? null,
       total_yen: spend.reduce((sum, e) => sum + e.amount_yen, 0),
+      coupon_count: coupons.length,
       favorite_count: settings.favorite_store_ids.length,
       custom_store_count: settings.custom_stores.length,
       disabled_method_count: settings.disabled_method_ids.length,

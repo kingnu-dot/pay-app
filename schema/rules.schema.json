@@ -14,7 +14,8 @@
     "methods": { "type": "array", "items": { "$ref": "#/$defs/method" } },
     "stores": { "type": "array", "items": { "$ref": "#/$defs/store" } },
     "store_groups": { "type": "array", "items": { "$ref": "#/$defs/store_group" } },
-    "redemptions": { "type": "array", "items": { "$ref": "#/$defs/redemption" } }
+    "redemptions": { "type": "array", "items": { "$ref": "#/$defs/redemption" } },
+    "services": { "type": "array", "items": { "$ref": "#/$defs/service" } }
   },
   "$defs": {
     "id": {
@@ -260,6 +261,44 @@
         "name": { "$ref": "#/$defs/text" },
         "store_ids": { "$ref": "#/$defs/id_list" },
         "meta": { "$ref": "#/$defs/meta" }
+      }
+    },
+    "service": {
+      "description": "クーポン・優待を確認できるサービス（店舗の公式アプリ、会員優待、検索サイトなど）。利用者が設定画面で「使っている」と選んだものだけを表示する。app と search_url_template の少なくとも一方が必要",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "$ref": "#/$defs/text" },
+        "store_ids": {
+          "description": "対象の店舗。省略時はすべての店舗（未登録の店を含む）",
+          "$ref": "#/$defs/id_list_nonempty"
+        },
+        "app": {
+          "description": "アプリを開くための情報。クーポンの中身は取得せず、「クーポンがあるか確認」とアプリを開くリンクだけを出す",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["android_package"],
+          "properties": {
+            "android_package": {
+              "description": "Android のパッケージ名",
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$"
+            },
+            "open_url": {
+              "description": "アプリで開ける https の URL（アプリが対応している場合）。省略時はパッケージ名だけで起動を試みる",
+              "type": "string",
+              "pattern": "^https://\\S+$"
+            }
+          }
+        },
+        "search_url_template": {
+          "description": "店名で検索するページの URL。{query} が店名に置き換わる",
+          "type": "string",
+          "pattern": "^https://\\S*\\{query\\}\\S*$"
+        },
+        "note": { "type": "string" }
       }
     },
     "redemption": {

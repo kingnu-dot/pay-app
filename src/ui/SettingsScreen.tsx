@@ -4,9 +4,11 @@ import { useState } from "preact/hooks";
 import { checkSource, isTokenFormatValid, type RulesSource } from "../rules/fetch";
 import type { SyncResult } from "../rules/sync";
 import type { RewardRule, Rules } from "../rules/types";
+import { isSafeHttpsUrl } from "../coupons/links";
 import {
   MAX_POINT_VALUE_MILLIYEN,
   MAX_THRESHOLD_YEN,
+  newCustomServiceId,
   newCustomStoreId,
   type Settings,
 } from "../settings/settings";
@@ -42,6 +44,7 @@ export function SettingsScreen(props: Props) {
           <AnnualSettings {...props} />
           <MethodToggles {...props} />
           <StoreSettings {...props} />
+          <ServiceSettings {...props} />
         </>
       )}
       <p class="hint">アプリの版：{__BUILD_ID__}</p>
@@ -432,6 +435,106 @@ function StoreSettings({ official, merged, settings, onSaveSettings }: Props) {
           )}
         </>
       )}
+    </details>
+  );
+}
+
+function ServiceSettings({ official, merged, settings, onSaveSettings }: Props) {
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [store_ids, setStoreIds] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const catalog = official.services ?? [];
+
+  const toggle = async (service_id: string, enabled: boolean) => {
+    const current = new Set(settings.enabled_service_ids);
+    if (enabled) current.add(service_id);
+    else current.delete(service_id);
+    await onSaveSettings({ ...settings, enabled_service_ids: [...current] });
+  };
+  const add = async () => {
+    const trimmed = name.trim();
+    const link = url.trim();
+    if (trimmed === "" || trimmed.length > 100) {
+      setError("サービス名を入力してください（100 文字まで）");
+      return;
+    }
+    if (link !== "" && (!isSafeHttpsUrl(link) || link.length > 500)) {
+      setError("リンクは https:// で始まる URL を入力してください");
+      return;
+    }
+    setError(null);
+    const id = newCustomServiceId(settings.custom_services.map((s) => s.id));
+    await onSaveSettings({
+      ...settings,
+      custom_services: [...settings.custom_services, { id, name: trimmed, store_ids, url: link === "" ? null : link }],
+    });
+    setName("");
+    setUrl("");
+    setStoreIds([]);
+  };
+  const remove = async (service_id: string, service_name: string) => {
+    if (!confirm(`「${service_name}」を削除しますか？`)) return;
+    await onSaveSettings({ ...settings, custom_services: settings.custom_services.filter((s) => s.id !== service_id) });
+  };
+  const storeName = (id: string): string => merged.stores.find((s) => s.id === id)?.name ?? id;
+
+  return (
+    <details class="card">
+      <summary>利用中のサービス（クーポン・優待の確認先）</summary>
+      <p class="hint">チェックしたサービスだけ、店舗を選んだときに「クーポンがあるか確認」のリンクを出します。</p>
+      {catalog.length === 0 && <p class="hint">ルールにサービスの一覧がありません。</p>}
+      {catalog.map((s) => (
+        <label key={s.id} class="check">
+          <input
+            type="checkbox"
+            checked={settings.enabled_service_ids.includes(s.id)}
+            onChange={(e) => void toggle(s.id, e.currentTarget.checked)}
+          />
+          {s.name}
+          {s.store_ids ? `（${s.store_ids.map(storeName).join("、")}）` : "（すべての店舗）"}
+        </label>
+      ))}
+
+      {settings.custom_services.length > 0 && <h2 class="spaced">自分で追加したサービス</h2>}
+      {settings.custom_services.map((s) => (
+        <div key={s.id} class="row">
+          <span>
+            {s.name}
+            {s.store_ids.length > 0 ? `（${s.store_ids.map(storeName).join("、")}）` : "（すべての店舗）"}
+          </span>
+          <button type="button" class="link danger" onClick={() => void remove(s.id, s.name)}>
+            削除
+          </button>
+        </div>
+      ))}
+
+      <h2 class="spaced">サービスを追加</h2>
+      <label class="field">
+        サービス名
+        <input class="input" type="text" value={name} onInput={(e) => setName(e.currentTarget.value)} />
+      </label>
+      <label class="field">
+        開くページの URL（任意。https:// で始まるもの）
+        <input class="input" type="url" autocapitalize="off" value={url} onInput={(e) => setUrl(e.currentTarget.value)} />
+      </label>
+      <details class="field-group">
+        <summary>対象店舗：{store_ids.length === 0 ? "すべての店舗" : `${store_ids.length} 店舗を選択中`}</summary>
+        {merged.stores.map((s) => (
+          <label key={s.id} class="check">
+            <input
+              type="checkbox"
+              checked={store_ids.includes(s.id)}
+              onChange={(e) => setStoreIds(e.currentTarget.checked ? [...store_ids, s.id] : store_ids.filter((id) => id !== s.id))}
+            />
+            {s.name}
+          </label>
+        ))}
+      </details>
+      {error && <p class="error">{error}</p>}
+      <button type="button" class="secondary" onClick={() => void add()}>
+        追加
+      </button>
     </details>
   );
 }

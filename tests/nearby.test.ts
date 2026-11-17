@@ -11,6 +11,7 @@ import {
   fetchNearby,
   normalizeNearbyCache,
   parseOverpass,
+  placeLabel,
   pruneCells,
   queryBlock,
   type FetchFn,
@@ -61,6 +62,30 @@ describe("Overpass の応答の読み取り", () => {
       { id: "node/1", name: "店舗S 駅前店", match_names: ["店舗S"], lat: 35.1231, lon: 139.9881, category: "convenience" },
       { id: "way/2", name: "店舗T", match_names: ["Shop T", "店舗T"], lat: 35.1232, lon: 139.9882, category: "cafe" },
     ]);
+  });
+
+  it("表示名は「店名＋支店名」。支店名が無ければ店名だけ", () => {
+    // 架空のチェーン「バーガーM」
+    expect(placeLabel("バーガーM", "バーガーM", "駅前店")).toBe("バーガーM 駅前店");
+    expect(placeLabel("バーガーM", "バーガーM", null)).toBe("バーガーM");
+    expect(placeLabel("バーガーM", null, null)).toBe("バーガーM");
+  });
+
+  it("名前に支店名だけが入っているときは、先頭にブランドを付ける", () => {
+    expect(placeLabel("駅前店", "バーガーM", null)).toBe("バーガーM 駅前店");
+    expect(placeLabel("駅前店", "バーガーM", "駅前店")).toBe("バーガーM 駅前店");
+  });
+
+  it("名前にすでに店名と支店名が入っていれば、二重に付けない（空白やハイフンの違いは無視）", () => {
+    expect(placeLabel("バーガーM 駅前店", "バーガーM", "駅前店")).toBe("バーガーM 駅前店");
+    expect(placeLabel("バーガー-M駅前店", "バーガーM", "駅前店")).toBe("バーガー-M駅前店");
+  });
+
+  it("応答から読み取るときも、日本語の支店名・ブランド名を使う", () => {
+    const place = parseOverpass({
+      elements: [{ type: "node", id: 9, lat: 35, lon: 139, tags: { name: "Ekimae", "name:ja": "駅前店", brand: "Burger M", "brand:ja": "バーガーM", "branch:ja": "駅前店", amenity: "fast_food" } }],
+    });
+    expect(place?.[0]?.name).toBe("バーガーM 駅前店");
   });
 
   it("形式が違う応答は読めないとして null を返す", () => {

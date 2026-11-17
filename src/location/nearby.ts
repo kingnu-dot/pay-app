@@ -75,6 +75,26 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 const text = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v.trim() : null);
 const isCoord = (v: unknown, limit: number): v is number => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= limit;
 
+/** 含まれているかの比較用に、空白・ハイフン類をそろえる */
+const squash = (s: string): string =>
+  s
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[-‐‑‒–—―−・･\s]/g, "");
+
+/**
+ * 表示名「店名＋支店名」（例：マクドナルド 船橋駅前店）を作る。
+ * - 名前に店名（ブランド）が入っていなければ、先頭にブランドを付ける（名前に支店名だけが入っている場合）
+ * - 支店名（branch）があり、まだ入っていなければ、後ろに付ける
+ * - 支店名が無ければ、店名だけ
+ */
+export function placeLabel(name: string, brand: string | null, branch: string | null): string {
+  let label = name;
+  if (brand !== null && !squash(label).includes(squash(brand))) label = `${brand} ${label}`;
+  if (branch !== null && !squash(label).includes(squash(branch))) label = `${label} ${branch}`;
+  return label;
+}
+
 /** Overpass の応答（JSON）から店の一覧を取り出す。形式が合わない要素は捨てる */
 export function parseOverpass(data: unknown): NearbyPlace[] | null {
   if (!isRecord(data) || !Array.isArray(data.elements)) return null;
@@ -88,13 +108,12 @@ export function parseOverpass(data: unknown): NearbyPlace[] | null {
     if (!isCoord(lat, 90) || !isCoord(lon, 180)) continue;
     const name = text(tags["name:ja"]) ?? text(tags.name);
     if (name === null) continue;
-    const branch = text(tags["branch:ja"]) ?? text(tags.branch);
     const match_names = [tags.name, tags["name:ja"], tags.brand, tags["brand:ja"], tags["brand:en"]]
       .map(text)
       .filter((n): n is string => n !== null);
     places.push({
       id: `${String(e.type)}/${String(e.id)}`,
-      name: branch !== null && !name.includes(branch) ? `${name} ${branch}` : name,
+      name: placeLabel(name, text(tags["brand:ja"]) ?? text(tags.brand), text(tags["branch:ja"]) ?? text(tags.branch)),
       match_names: [...new Set(match_names)],
       lat,
       lon,

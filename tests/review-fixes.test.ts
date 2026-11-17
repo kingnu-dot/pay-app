@@ -6,6 +6,7 @@ import { toJstDate } from "../src/engine/dates";
 import { MAX_AMOUNT_YEN, rankMethods } from "../src/engine/recommend";
 import { parseRules } from "../src/rules/validate";
 import type { Rules } from "../src/rules/types";
+import { defaultSettings, isSuccessorRuleId, mergeRules } from "../src/settings/settings";
 import sample from "./fixtures/sample-rules.json";
 
 const DATE = "2026-01-10";
@@ -132,6 +133,80 @@ describe("使う店舗を限定した支払い手段（カードB の差し込�
     expect(invalid((r) => { const m = r.methods[0]; if (m) m.only_store_group_ids = ["group_none"]; })
       .some((e) => e.includes("group_none"))).toBe(true);
     expect(invalid((r) => { const m = r.methods[0]; if (m) m.only_store_group_ids = []; }).length).toBeGreaterThan(0);
+  });
+});
+
+describe("日付で切り替わるルール（加算のルールを 2026-02-01 から後継に引き継ぐ）", () => {
+  // 元のルールを 1/31 で終わらせ、同じ内容の後継（id は「元の id__任意の名前」）を 2/1 から有効にする
+  const rules = variant((r) => {
+    const card = r.cards.find((c) => c.id === "card_a");
+    const original = card?.rewards.find((x) => x.id === "card_a_touch_bonus");
+    if (!card || !original) return;
+    const successor = structuredClone(original);
+    successor.id = "card_a_touch_bonus__next";
+    successor.label = "スマホタッチ加算（一部の商品は対象外）";
+    successor.meta.valid_from = "2026-02-01";
+    original.meta.valid_to = "2026-01-31";
+    card.rewards.push(successor);
+  });
+  const bonusOf = (r: Rules, date: string) =>
+    rankMethods({ rules: r, store_id: "store_s", amount_yen: 1000, date })
+      .candidates.find((c) => c.method.id === "card_a_gpay")
+      ?.components.filter((c) => c.rule_id.startsWith("card_a_touch_bonus"))
+      .map((c) => [c.rule_id, c.points]);
+
+  it("切り替え日の前日までは元のルール、当日からは後継のルールが使われる（二重には付かない）", () => {
+    expect(bonusOf(rules, "2026-01-31")).toEqual([["card_a_touch_bonus", 40]]);
+    expect(bonusOf(rules, "2026-02-01")).toEqual([["card_a_touch_bonus__next", 40]]);
+  });
+
+  it("元のルールに登録した店舗の例外は、後継のルールにも引き継がれる", () => {
+    const merged = mergeRules(rules, {
+      ...defaultSettings(),
+      store_exceptions: [{ store_id: "store_s", rule_id: "card_a_touch_bonus" }],
+    });
+    expect(merged.errors).toEqual([]);
+    expect(bonusOf(merged.rules, "2026-01-31")).toEqual([]);
+    expect(bonusOf(merged.rules, "2026-02-01")).toEqual([]);
+  });
+
+  it("名前が似ているだけの別のルールには、例外を広げない", () => {
+    const merged = mergeRules(rules, {
+      ...defaultSettings(),
+      store_exceptions: [{ store_id: "store_s", rule_id: "card_a" }],
+    });
+    expect(bonusOf(merged.rules, "2026-02-01")).toEqual([["card_a_touch_bonus__next", 40]]);
+  });
+
+  it("切り替えの 30 日前からは「まもなく終了」ではなく「まもなく変更」として知らせる", () => {
+    const changing = (date: string) =>
+      ruleAlerts(rules, date)
+        .filter((a) => a.where.includes("card_a_touch_bonus"))
+        .filter((a) => a.kind !== "stale")
+        .map((a) => [a.kind, a.days, a.next_label]);
+    expect(changing("2026-01-01")).toEqual([["changing", 30, "カードA：スマホタッチ加算（一部の商品は対象外）"]]);
+    expect(changing("2025-12-31")).toEqual([]);
+    expect(changing("2026-02-01")).toEqual([]);
+  });
+
+  it("後継のルールが翌日から始まらない（間が空く）ときは「まもなく終了」のまま", () => {
+    const gap = variant((r) => {
+      const card = r.cards.find((c) => c.id === "card_a");
+      const original = card?.rewards.find((x) => x.id === "card_a_touch_bonus");
+      if (!card || !original) return;
+      const successor = structuredClone(original);
+      successor.id = "card_a_touch_bonus__later";
+      successor.meta.valid_from = "2026-03-01";
+      original.meta.valid_to = "2026-01-31";
+      card.rewards.push(successor);
+    });
+    const kinds = ruleAlerts(gap, "2026-01-20").filter((a) => a.where.endsWith("/card_a_touch_bonus")).map((a) => a.kind);
+    expect(kinds).toEqual(["expiring"]);
+  });
+
+  it("後継のルールかどうかを id で見分ける", () => {
+    expect(isSuccessorRuleId("card_a_touch_bonus__next")).toBe(true);
+    expect(isSuccessorRuleId("card_a_touch_bonus")).toBe(false);
   });
 });
 

@@ -1,7 +1,7 @@
 // 判定の入口：順位付けに、年間目標の優先・注意事項・ポイント利用の案内を加える
 
 import { annualPeriod, annualStatus, type AnnualStatus } from "./annual";
-import { daysBetween } from "./dates";
+import { addDays, daysBetween } from "./dates";
 import { assertInt, divCeil, divFloor, MILLIYEN_PER_YEN } from "./money";
 import { dayOfMonth, isActive, rankMethods, type Candidate, type RankInput } from "./recommend";
 import type { Cap, Loyalty, Meta, Method, Redemption, RewardRule, Rules, Store } from "../rules/types";
@@ -236,32 +236,61 @@ export function recommend(input: AdviseInput): Recommendation {
   };
 }
 
+/**
+ * 後継のルールの id に使う区切り（例：base_rule__2027 は base_rule の後継）。
+ * ルールの内容が日付で切り替わるときは、元のルールの valid_to を前日にし、後継のルールを valid_from から有効にする
+ */
+export const SUCCESSOR_SEPARATOR = "__";
+
+/** 後継のルールか */
+export function isSuccessorRuleId(rule_id: string): boolean {
+  return rule_id.includes(SUCCESSOR_SEPARATOR);
+}
+
 /** ホーム画面に出す、ルールの期限と確認日の警告 */
 export interface RuleAlert {
-  kind: "expiring" | "stale";
+  /** expiring：まもなく終了 / changing：まもなく後継のルールに切り替わる / stale：要再確認 */
+  kind: "expiring" | "changing" | "stale";
   /** ルールの場所（例：cards/card_a/rewards/card_a_base） */
   where: string;
   label: string;
-  /** expiring：valid_to / stale：last_verified */
+  /** expiring・changing：valid_to / stale：last_verified */
   date: string;
-  /** expiring：終了までの日数 / stale：確認からの経過日数 [日] */
+  /** expiring・changing：終了までの日数 / stale：確認からの経過日数 [日] */
   days: number;
+  /** changing のとき、切り替わった後のルールの名前 */
+  next_label?: string;
 }
 
-/** 全ルールから「まもなく終了」「要再確認」を集める（期限切れのルールは対象外） */
+/** 全ルールから「まもなく終了」「まもなく変更」「要再確認」を集める（期限切れのルールは対象外） */
 export function ruleAlerts(rules: Rules, date: string): RuleAlert[] {
   const alerts: RuleAlert[] = [];
-  const check = (where: string, label: string, meta: Meta): void => {
+  const check = (where: string, label: string, meta: Meta, next_label?: string): void => {
     if (!isActive(meta, date)) return;
     if (meta.valid_to !== null) {
       const days = daysBetween(date, meta.valid_to);
-      if (days <= EXPIRING_DAYS) alerts.push({ kind: "expiring", where, label, date: meta.valid_to, days });
+      if (days <= EXPIRING_DAYS) {
+        alerts.push(
+          next_label === undefined
+            ? { kind: "expiring", where, label, date: meta.valid_to, days }
+            : { kind: "changing", where, label, date: meta.valid_to, days, next_label },
+        );
+      }
     }
     const since = daysBetween(meta.last_verified, date);
     if (since >= STALE_DAYS) alerts.push({ kind: "stale", where, label, date: meta.last_verified, days: since });
   };
   const checkRewards = (prefix: string, owner: string, rewards: readonly RewardRule[]): void => {
-    for (const r of rewards) check(`${prefix}/rewards/${r.id}`, `${owner}：${r.label}`, r.meta);
+    for (const r of rewards) {
+      // 終了日の翌日から始まる後継のルールがあれば「終了」ではなく「変更」として知らせる
+      const successor =
+        r.meta.valid_to === null
+          ? undefined
+          : rewards.find(
+              (s) => s.id.startsWith(`${r.id}${SUCCESSOR_SEPARATOR}`) && s.meta.valid_from === addDays(r.meta.valid_to as string, 1),
+            );
+      check(`${prefix}/rewards/${r.id}`, `${owner}：${r.label}`, r.meta, successor ? `${owner}：${successor.label}` : undefined);
+    }
   };
   for (const card of rules.cards) {
     checkRewards(`cards/${card.id}`, card.name, card.rewards);

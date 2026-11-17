@@ -101,15 +101,17 @@ export function Home(props: Props) {
       {alerts.length > 0 && (
         <details class="banner banner-warn">
           <summary>
-            ルールの確認：まもなく終了 {alerts.filter((a) => a.kind === "expiring").length} 件、要再確認{" "}
-            {alerts.filter((a) => a.kind === "stale").length} 件
+            ルールの確認：まもなく終了 {alerts.filter((a) => a.kind === "expiring").length} 件、まもなく変更{" "}
+            {alerts.filter((a) => a.kind === "changing").length} 件、要再確認 {alerts.filter((a) => a.kind === "stale").length} 件
           </summary>
           <ul>
             {alerts.map((a) => (
               <li key={`${a.kind}:${a.where}`}>
                 {a.kind === "expiring"
                   ? `まもなく終了：${a.label}（${formatDate(a.date)} まで、あと ${a.days} 日）`
-                  : `要再確認：${a.label}（最終確認 ${formatDate(a.date)}、${a.days} 日前）`}
+                  : a.kind === "changing"
+                    ? `まもなく変更：${a.label}（${formatDate(a.date)} まで、あと ${a.days} 日。翌日から「${a.next_label ?? ""}」）`
+                    : `要再確認：${a.label}（最終確認 ${formatDate(a.date)}、${a.days} 日前）`}
               </li>
             ))}
           </ul>

@@ -8,6 +8,7 @@ import { isSafeHttpsUrl } from "../coupons/links";
 import {
   MAX_POINT_VALUE_MILLIYEN,
   MAX_THRESHOLD_YEN,
+  isSuccessorRuleId,
   newCustomServiceId,
   newCustomStoreId,
   type Settings,
@@ -298,7 +299,9 @@ function StoreSettings({ official, merged, settings, onSaveSettings }: Props) {
     ...official.methods.flatMap((m) => (m.rewards ?? []).map((rule) => ({ rule, owner: m.label }))),
   ].filter(
     ({ rule }) =>
-      (rule.applies.store_ids ?? []).includes(selected_id) || (rule.applies.store_group_ids ?? []).some((id) => group_ids.has(id)),
+      // 日付で切り替わる後継のルールは一覧に出さない（元のルールの例外が引き継がれる）
+      !isSuccessorRuleId(rule.id) &&
+      ((rule.applies.store_ids ?? []).includes(selected_id) || (rule.applies.store_group_ids ?? []).some((id) => group_ids.has(id))),
   );
 
   const saveAliases = async () => {

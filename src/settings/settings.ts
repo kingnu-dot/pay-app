@@ -1,7 +1,7 @@
 // 個人上書き層：端末内に保存する個人設定と、公式ルールへの合成
 // 判定には「公式ルール ＋ 個人設定」を合成したルールを使う（個人設定が優先）
 
-import { DEFAULT_ANNUAL_THRESHOLD_YEN } from "../engine/advise";
+import { DEFAULT_ANNUAL_THRESHOLD_YEN, SUCCESSOR_SEPARATOR, isSuccessorRuleId } from "../engine/advise";
 import { checkIntegrity } from "../rules/validate";
 import type { Rules, Store } from "../rules/types";
 
@@ -186,6 +186,9 @@ export function newCustomServiceId(existing_ids: readonly string[]): string {
   }
 }
 
+// 後継のルールの決まりは判定エンジン側で定義している（設定画面からも使えるよう、ここから再公開する）
+export { SUCCESSOR_SEPARATOR, isSuccessorRuleId };
+
 export interface MergeResult {
   rules: Rules;
   /** 合成後のルールに問題があった場合の説明（このとき rules は公式ルールのまま） */
@@ -222,10 +225,14 @@ export function mergeRules(official: Rules, settings: Settings): MergeResult {
 
   const all_rewards = [...rules.cards.flatMap((c) => c.rewards), ...rules.methods.flatMap((m) => m.rewards ?? [])];
   for (const exception of settings.store_exceptions) {
-    const rule = all_rewards.find((r) => r.id === exception.rule_id);
-    if (!rule || !store_ids.has(exception.store_id)) continue;
-    const excluded = rule.applies.exclude_store_ids ?? [];
-    if (!excluded.includes(exception.store_id)) rule.applies.exclude_store_ids = [...excluded, exception.store_id];
+    if (!store_ids.has(exception.store_id)) continue;
+    // ルールの内容が日付で切り替わるとき、後継のルールは id を「元の id__任意の名前」にする約束。
+    // 元のルールに登録した例外は、後継のルールにも引き継ぐ（切り替え後に登録し直さなくて済むように）
+    for (const rule of all_rewards) {
+      if (rule.id !== exception.rule_id && !rule.id.startsWith(`${exception.rule_id}${SUCCESSOR_SEPARATOR}`)) continue;
+      const excluded = rule.applies.exclude_store_ids ?? [];
+      if (!excluded.includes(exception.store_id)) rule.applies.exclude_store_ids = [...excluded, exception.store_id];
+    }
   }
 
   for (const card of rules.cards) {

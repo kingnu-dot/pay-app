@@ -28,6 +28,10 @@ interface Props {
   /** 取得設定を保存して、ルールを取り直す */
   onSaveConfig: (next: RulesConfig) => Promise<void>;
   onRefetch: () => Promise<void>;
+  /** 1つ前のルールに戻す */
+  onRollback: () => Promise<void>;
+  /** 保留にしていた最新のルールに戻す */
+  onRestoreLatest: () => Promise<void>;
 }
 
 /** 区切り文字（読点・カンマ・改行）で分けた別名の一覧にする */
@@ -53,7 +57,7 @@ export function SettingsScreen(props: Props) {
   );
 }
 
-function RulesSourceForm({ config, sync, onSaveConfig, onRefetch }: Props) {
+function RulesSourceForm({ config, sync, onSaveConfig, onRefetch, onRollback, onRestoreLatest }: Props) {
   const [owner, setOwner] = useState(config.source?.owner ?? "");
   const [repo, setRepo] = useState(config.source?.repo ?? "");
   const [path, setPath] = useState(config.source?.path ?? "rules/rules.json");
@@ -115,6 +119,16 @@ function RulesSourceForm({ config, sync, onSaveConfig, onRefetch }: Props) {
       {config.source && config.token && (
         <button type="button" class="link" disabled={busy} onClick={() => void onRefetch()}>
           今すぐ再取得
+        </button>
+      )}
+      {sync.can_rollback && (
+        <button type="button" class="link" disabled={busy} onClick={() => void onRollback()}>
+          1つ前のルールに戻す
+        </button>
+      )}
+      {sync.on_hold && (
+        <button type="button" class="link" disabled={busy} onClick={() => void onRestoreLatest()}>
+          最新のルールに戻す
         </button>
       )}
     </details>

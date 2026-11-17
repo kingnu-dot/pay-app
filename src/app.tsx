@@ -6,7 +6,7 @@ import { annualPeriod } from "./engine/annual";
 import { toJstDate } from "./engine/dates";
 import { adjustmentFor, sumAnnualSpent } from "./engine/spend";
 import { fetchRules } from "./rules/fetch";
-import { syncRules, type SyncResult } from "./rules/sync";
+import { restoreHeldRules, rollbackRules, syncRules, type SyncResult } from "./rules/sync";
 import type { Rules } from "./rules/types";
 import { mergeRules, type Settings } from "./settings/settings";
 import {
@@ -210,6 +210,16 @@ export function App() {
   const markCouponUsed = (coupon_id: string) =>
     void updateCoupons(data.coupons.map((c) => (c.id === coupon_id ? { ...c, used: true } : c)));
 
+  const rollback = async () => {
+    if (!confirm("1つ前のルールに戻しますか？（今のルールは保留にして、あとで「最新に戻す」で戻せます）")) return;
+    await rollbackRules(idbRulesCache);
+    await reload();
+  };
+  const restoreLatest = async () => {
+    await restoreHeldRules(idbRulesCache);
+    await reload();
+  };
+
   const saveConfig = async (next: RulesConfig) => {
     await saveRulesConfig(next);
     await reload();
@@ -231,7 +241,17 @@ export function App() {
         </p>
       )}
       {problem && <p class="banner banner-warn">{problem}</p>}
-      {data.sync.updated && <p class="banner banner-ok">ルールを最新版に更新しました。</p>}
+      {data.sync.updated && (
+        <RulesUpdatedBanner sync={data.sync} onRollback={() => void rollback()} />
+      )}
+      {data.sync.on_hold && (
+        <p class="banner banner-info">
+          1つ前のルールで動作中です（新しいルールは保留中）。
+          <button type="button" class="link" onClick={() => void restoreLatest()}>
+            最新に戻す
+          </button>
+        </p>
+      )}
       {merged && merged.errors.length > 0 && (
         <p class="banner banner-warn">
           個人設定を反映できなかったため、公式ルールだけで判定しています（{merged.errors.slice(0, 2).join(" / ")}）
@@ -274,6 +294,8 @@ export function App() {
           onSaveSettings={updateSettings}
           onSaveConfig={saveConfig}
           onRefetch={reload}
+          onRollback={rollback}
+          onRestoreLatest={restoreLatest}
         />
       )}
       {tab === "settings" && (
@@ -316,6 +338,35 @@ export function App() {
         ))}
       </nav>
     </main>
+  );
+}
+
+/** 変更点を一度に表示する最大件数 */
+const MAX_CHANGES_SHOWN = 15;
+
+/** ルールを新しい版に差し替えたときの通知（変更点と「1つ前に戻す」） */
+function RulesUpdatedBanner(props: { sync: SyncResult; onRollback: () => void }) {
+  const { changes, can_rollback } = props.sync;
+  const mark = { added: "＋", removed: "－", changed: "＊" } as const;
+  return (
+    <details class="banner banner-ok" open={changes.length > 0 && changes.length <= 5}>
+      <summary>ルールが更新されました{changes.length > 0 ? `（変更 ${changes.length} 件）` : ""}</summary>
+      {changes.length > 0 && (
+        <ul class="changes">
+          {changes.slice(0, MAX_CHANGES_SHOWN).map((c, i) => (
+            <li key={i}>
+              {mark[c.kind]} {c.text}
+            </li>
+          ))}
+          {changes.length > MAX_CHANGES_SHOWN && <li>…ほか {changes.length - MAX_CHANGES_SHOWN} 件</li>}
+        </ul>
+      )}
+      {can_rollback && (
+        <button type="button" class="link" onClick={props.onRollback}>
+          1つ前のルールに戻す
+        </button>
+      )}
+    </details>
   );
 }
 

@@ -503,3 +503,11 @@ summary {
   font-weight: 400;
   color: var(--muted);
 }
+
+.changes {
+  margin: 4px 0;
+  padding-left: 0;
+  list-style: none;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}

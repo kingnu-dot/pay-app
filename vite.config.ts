@@ -13,7 +13,7 @@ const CSP = [
   "script-src 'self'",
   "style-src 'self'",
   "img-src 'self' data:",
-  "connect-src 'self' https://api.github.com",
+  "connect-src 'self' https://api.github.com https://overpass-api.de",
   "manifest-src 'self'",
   "worker-src 'self'",
   "base-uri 'self'",

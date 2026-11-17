@@ -8,7 +8,7 @@ import { adjustmentFor, sumAnnualSpent } from "./engine/spend";
 import { fetchRules } from "./rules/fetch";
 import { restoreHeldRules, rollbackRules, syncRules, type SyncResult } from "./rules/sync";
 import type { Rules } from "./rules/types";
-import { mergeRules, type Settings } from "./settings/settings";
+import { mergeRules, newCustomStoreId, type Settings } from "./settings/settings";
 import {
   addSpend,
   deleteSpend,
@@ -210,6 +210,16 @@ export function App() {
   const markCouponUsed = (coupon_id: string) =>
     void updateCoupons(data.coupons.map((c) => (c.id === coupon_id ? { ...c, used: true } : c)));
 
+  /** 近くの店を、自分の店舗として追加する（id は既存と重ならないように作る） */
+  const addCustomStore = async (name: string): Promise<string> => {
+    const id = newCustomStoreId(merged?.rules.stores.map((s) => s.id) ?? []);
+    await updateSettings({
+      ...data.settings,
+      custom_stores: [...data.settings.custom_stores, { id, name: name.trim().slice(0, 100), aliases: [], channel: "in_store" }],
+    });
+    return id;
+  };
+
   const rollback = async () => {
     if (!confirm("1つ前のルールに戻しますか？（今のルールは保留にして、あとで「最新に戻す」で戻せます）")) return;
     await rollbackRules(idbRulesCache);
@@ -322,6 +332,7 @@ export function App() {
           onOpenCoupons={() => setTab("coupons")}
           onToggleFavorite={toggleFavorite}
           onPaid={recordPaid}
+          onAddStore={addCustomStore}
         />
       ) : (
         <section class="card">

@@ -3,6 +3,7 @@
 
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import { normalizeCoupons, type Coupon } from "../coupons/coupons";
+import { normalizeNearbyCache, type NearbyCache } from "../location/nearby";
 import type { RulesSource } from "../rules/fetch";
 import type { RulesCache, RulesState } from "../rules/sync";
 import { normalizeSettings, type Settings } from "../settings/settings";
@@ -44,6 +45,7 @@ const KEY_RULES_STATE = "rules_state";
 const KEY_SETTINGS = "settings";
 const KEY_LAST_BACKUP_DATE = "last_backup_date";
 const KEY_COUPONS = "coupons";
+const KEY_NEARBY = "nearby";
 
 let db_promise: Promise<IDBPDatabase<PayDb>> | null = null;
 
@@ -97,6 +99,21 @@ export async function addSpend(entry: Omit<SpendEntry, "id">): Promise<void> {
 
 export async function deleteSpend(id: number): Promise<void> {
   await (await getDb()).delete("spend", id);
+}
+
+/** 近くの店の検索結果（区画ごと）。位置に関わるので、バックアップには含めない */
+export async function loadNearbyCache(): Promise<NearbyCache> {
+  return normalizeNearbyCache(await kvGet(KEY_NEARBY));
+}
+
+export async function saveNearbyCache(cache: NearbyCache): Promise<void> {
+  await kvSet(KEY_NEARBY, cache);
+}
+
+/** 近くの店の検索結果を消す（問い合わせ回数の記録は残す） */
+export async function clearNearbyCache(): Promise<void> {
+  const cache = await loadNearbyCache();
+  await saveNearbyCache({ ...cache, cells: {} });
 }
 
 /** 登録したクーポン・優待 */

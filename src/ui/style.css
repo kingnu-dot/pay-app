@@ -511,3 +511,73 @@ summary {
   font-size: 0.9rem;
   overflow-wrap: anywhere;
 }
+
+.search-row {
+  display: flex;
+  gap: 8px;
+}
+
+.search-row .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-near {
+  width: auto;
+  margin-top: 0;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.nearby h3 {
+  margin: 12px 0 4px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.nearby-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nearby-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 4px;
+  text-align: left;
+  color: var(--text);
+  background: none;
+  border: none;
+  border-top: 1px solid var(--line);
+}
+
+.nearby-unregistered {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0 8px;
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+}
+
+.distance {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.attribution {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.attribution a {
+  color: var(--muted);
+}

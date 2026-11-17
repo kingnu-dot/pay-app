@@ -4,10 +4,13 @@ import { useMemo, useState } from "preact/hooks";
 import type { ActiveService, Coupon } from "../coupons/coupons";
 import { recommend, ruleAlerts, type Advice, type Recommendation } from "../engine/advise";
 import { searchStores } from "../engine/search";
+import { matchPlaces } from "../location/match";
+import { useNearby } from "../location/useNearby";
 import type { Rules, Store } from "../rules/types";
 import type { Settings } from "../settings/settings";
 import { breakdownLine, noticeText, reasonText, redemptionDetail } from "./explain";
 import { formatDate, formatMilliyen, formatRate, formatYen, parseAmount } from "./format";
+import { NearbyBranches, NearbyStatus, NearbyStores } from "./Nearby";
 import { ExpiringCoupons, StorePerks } from "./Perks";
 
 /** 「これで払った」で記録する内容 */
@@ -38,6 +41,8 @@ interface Props {
   onOpenCoupons: () => void;
   onToggleFavorite: (store_id: string) => void;
   onPaid: (record: PaidRecord) => Promise<void>;
+  /** 近くの店を、自分の店舗として追加する。追加した店舗の id を返す */
+  onAddStore: (name: string) => Promise<string>;
 }
 
 /** 候補に一度に出す店舗の数 */
@@ -52,6 +57,15 @@ export function Home(props: Props) {
   const [selection, setSelection] = useState<Selection>(undefined);
   const [amount_text, setAmountText] = useState("");
   const [paid_message, setPaidMessage] = useState<string | null>(null);
+  /** 「現在地から探す」を押したか */
+  const [nearby_mode, setNearbyMode] = useState(false);
+  /** 登録されていない近くの店を選んだときの店名（判定は未登録の店として行う） */
+  const [place_label, setPlaceLabel] = useState<string | null>(null);
+  const nearby = useNearby();
+  const matched = useMemo(
+    () => (nearby.state.status === "ready" && nearby.state.position ? matchPlaces(nearby.state.places, rules.stores, nearby.state.position) : []),
+    [nearby.state, rules.stores],
+  );
 
   const amount = parseAmount(amount_text);
   const store = selection ? (rules.stores.find((s) => s.id === selection) ?? null) : null;
@@ -75,11 +89,17 @@ export function Home(props: Props) {
     // amount は毎回作り直されるオブジェクトなので、元の文字列（amount_text）を依存に使う
   }, [rules, selection, amount_text, today, settings, annual_spent_yen]);
 
-  const select = (next: Selection) => {
+  const select = (next: Selection, label: string | null = null) => {
     setSelection(next);
+    setPlaceLabel(label);
     setQuery("");
+    setNearbyMode(false);
     setPaidMessage(null);
   };
+  const addAndSelect = async (place_name: string) => {
+    select(await props.onAddStore(place_name));
+  };
+  const selected_name = store?.name ?? (place_label !== null ? `${place_label}（未登録の店）` : "未登録の店（一般加盟店）");
 
   const pay = async (advice: Advice) => {
     if (!amount.ok || amount.amount_yen === null) return;
@@ -88,7 +108,7 @@ export function Home(props: Props) {
       method_id: method.id,
       method_label: method.label,
       amount_yen: amount.amount_yen,
-      store_name: store?.name ?? "未登録の店",
+      store_name: store?.name ?? place_label ?? "未登録の店",
       annual_card_id: method.counts_toward_annual ? (method.card_id ?? method.funding?.card_id ?? null) : null,
     });
     setPaidMessage(`${formatYen(amount.amount_yen)}を「${method.label}」で記録しました。`);
@@ -122,14 +142,31 @@ export function Home(props: Props) {
         <h2>店舗</h2>
         {selection === undefined ? (
           <>
-            <input
-              type="search"
-              class="input"
-              placeholder="店名で検索"
-              value={query}
-              onInput={(e) => setQuery(e.currentTarget.value)}
-              aria-label="店名で検索"
-            />
+            <div class="search-row">
+              <input
+                type="search"
+                class="input"
+                placeholder="店名で検索"
+                value={query}
+                onInput={(e) => {
+                  const value = e.currentTarget.value;
+                  setQuery(value);
+                  // 店名を入れ始めたら現在地を取得し、近くの支店を探す（区画ごとに問い合わせは 1 回だけ）
+                  if (value.trim() !== "") void nearby.locate();
+                }}
+                aria-label="店名で検索"
+              />
+              <button
+                type="button"
+                class="secondary search-near"
+                onClick={() => {
+                  setNearbyMode(true);
+                  void nearby.locate(true);
+                }}
+              >
+                現在地から探す
+              </button>
+            </div>
             <div class="choices">
               {choices.map((s) => (
                 <button key={s.id} type="button" class="choice" onClick={() => select(s.id)}>
@@ -142,10 +179,23 @@ export function Home(props: Props) {
               </button>
             </div>
             {query !== "" && choices.length === 0 && <p class="hint">一致する店舗がありません。</p>}
+            {(query !== "" || nearby_mode) && <NearbyStatus state={nearby.state} />}
+            {query !== "" && (
+              <NearbyBranches matched={matched} store_ids={choices.map((s) => s.id)} stores={rules.stores} onSelect={(id) => select(id)} />
+            )}
+            {query === "" && nearby_mode && nearby.state.status === "ready" && (
+              <NearbyStores
+                matched={matched}
+                stores={rules.stores}
+                onSelect={(id) => select(id)}
+                onSelectUnregistered={(name) => select(null, name)}
+                onAdd={(name) => void addAndSelect(name)}
+              />
+            )}
           </>
         ) : (
           <div class="selected">
-            <strong>{store?.name ?? "未登録の店（一般加盟店）"}</strong>
+            <strong>{selected_name}</strong>
             {store && <FavoriteButton store={store} settings={settings} onToggle={onToggleFavorite} />}
             <button type="button" class="link" onClick={() => select(undefined)}>
               変更

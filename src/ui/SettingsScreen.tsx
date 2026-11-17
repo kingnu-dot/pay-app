@@ -1,6 +1,6 @@
 // 設定画面：ルールの取得設定と、個人上書き層（すべてフォームで編集する。JSON の直接編集は不要）
 
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { checkSource, isTokenFormatValid, type RulesSource } from "../rules/fetch";
 import type { SyncResult } from "../rules/sync";
 import type { RewardRule, Rules } from "../rules/types";
@@ -13,7 +13,7 @@ import {
   newCustomStoreId,
   type Settings,
 } from "../settings/settings";
-import type { RulesConfig } from "../storage/db";
+import { clearNearbyCache, loadNearbyCache, type RulesConfig } from "../storage/db";
 import { milliyenToInput, parseAmount, parseYenValue } from "./format";
 
 interface Props {
@@ -50,6 +50,7 @@ export function SettingsScreen(props: Props) {
           <MethodToggles {...props} />
           <StoreSettings {...props} />
           <ServiceSettings {...props} />
+          <LocationSettings />
         </>
       )}
       <p class="hint">アプリの版：{__BUILD_ID__}</p>
@@ -552,6 +553,32 @@ function ServiceSettings({ official, merged, settings, onSaveSettings }: Props) 
       <button type="button" class="secondary" onClick={() => void add()}>
         追加
       </button>
+    </details>
+  );
+}
+function LocationSettings() {
+  const [cells, setCells] = useState<number | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => {
+    void loadNearbyCache().then((c) => setCells(Object.keys(c.cells).length));
+  }, []);
+  const clear = async () => {
+    await clearNearbyCache();
+    setCells(0);
+    setMessage("位置の検索履歴を消しました。");
+  };
+  return (
+    <details class="card">
+      <summary>位置情報</summary>
+      <p class="hint">
+        位置は、店名で検索したときと「現在地から探す」を押したときだけ取得します。近くの店の検索（OpenStreetMap の
+        Overpass API）には、約 100m 単位に丸めた座標だけを送ります。結果は場所ごとに最大 30 日、この端末に保存し、バックアップには含めません。
+      </p>
+      <p class="hint">保存している場所：{cells === null ? "…" : `${cells} か所`}</p>
+      <button type="button" class="link danger" disabled={cells === 0} onClick={() => void clear()}>
+        位置の検索履歴を消す
+      </button>
+      {message && <p class="hint">{message}</p>}
     </details>
   );
 }
